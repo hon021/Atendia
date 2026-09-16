@@ -4,8 +4,11 @@ namespace Atendia.Application;
 
 public interface IKnowledgeService
 {
-    IReadOnlyList<KnowledgeItem> Search(string tenantId, string botId, string query);
-    void Add(KnowledgeItem item);
+    Task<IReadOnlyList<KnowledgeItem>> SearchAsync(string tenantId, string botId, string query, CancellationToken cancellationToken = default);
+    Task<KnowledgeItem?> GetByIdAsync(string tenantId, string botId, string id, CancellationToken cancellationToken = default);
+    Task AddAsync(KnowledgeItem item, CancellationToken cancellationToken = default);
+    Task<bool> UpdateAsync(string tenantId, string botId, string id, string title, string content, string sourceType, CancellationToken cancellationToken = default);
+    Task<bool> DeleteAsync(string tenantId, string botId, string id, CancellationToken cancellationToken = default);
 }
 
 public sealed class InMemoryKnowledgeService : IKnowledgeService
@@ -41,28 +44,57 @@ public sealed class InMemoryKnowledgeService : IKnowledgeService
         }
     };
 
-    public IReadOnlyList<KnowledgeItem> Search(string tenantId, string botId, string query)
+    public Task<IReadOnlyList<KnowledgeItem>> SearchAsync(string tenantId, string botId, string query, CancellationToken cancellationToken = default)
     {
         var normalizedQuery = query.Trim();
 
         if (string.IsNullOrWhiteSpace(normalizedQuery))
         {
-            return Array.Empty<KnowledgeItem>();
+            return Task.FromResult<IReadOnlyList<KnowledgeItem>>(Array.Empty<KnowledgeItem>());
         }
 
-        return _items
+        IReadOnlyList<KnowledgeItem> result = _items
             .Where(item =>
                 item.TenantId == tenantId &&
                 item.BotId == botId &&
                 (item.Title.Contains(normalizedQuery, StringComparison.OrdinalIgnoreCase) ||
                  item.Content.Contains(normalizedQuery, StringComparison.OrdinalIgnoreCase)))
             .ToList();
+
+            return Task.FromResult(result);
     }
 
-    public void Add(KnowledgeItem item)
+            public Task AddAsync(KnowledgeItem item, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(item);
 
         _items.Add(item);
+        return Task.CompletedTask;
+    }
+
+    public Task<KnowledgeItem?> GetByIdAsync(string tenantId, string botId, string id, CancellationToken cancellationToken = default)
+    {
+        return Task.FromResult(_items.FirstOrDefault(item => item.Id == id && item.TenantId == tenantId && item.BotId == botId));
+    }
+
+    public Task<bool> UpdateAsync(string tenantId, string botId, string id, string title, string content, string sourceType, CancellationToken cancellationToken = default)
+    {
+        var item = _items.FirstOrDefault(x => x.Id == id && x.TenantId == tenantId && x.BotId == botId);
+        if (item is null)
+        {
+            return Task.FromResult(false);
+        }
+
+        item.Title = title;
+        item.Content = content;
+        item.SourceType = sourceType;
+        item.CreatedAtUtc = DateTime.UtcNow;
+        return Task.FromResult(true);
+    }
+
+    public Task<bool> DeleteAsync(string tenantId, string botId, string id, CancellationToken cancellationToken = default)
+    {
+        var item = _items.FirstOrDefault(x => x.Id == id && x.TenantId == tenantId && x.BotId == botId);
+        return Task.FromResult(item is not null && _items.Remove(item));
     }
 }

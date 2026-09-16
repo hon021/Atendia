@@ -17,7 +17,7 @@ public sealed class ExternalChatModel : IChatModel
         _settings = settings;
     }
 
-    public async Task<ChatResponse> GenerateAsync(ChatRequest request, CancellationToken cancellationToken)
+    public async Task<ChatResponse> GenerateAsync(ChatRequest request, ChatContext context, CancellationToken cancellationToken)
     {
         if (string.IsNullOrWhiteSpace(_settings.ApiKey) || _settings.ApiKey == "SET_YOUR_API_KEY")
         {
@@ -30,12 +30,18 @@ public sealed class ExternalChatModel : IChatModel
             };
         }
 
+        var knowledge = string.Join("\n\n", context.Knowledge.Select(item => $"{item.Title}: {item.Content}"));
+        var contextPrompt = string.IsNullOrWhiteSpace(knowledge)
+            ? "No hay artículos relevantes en la base de conocimiento."
+            : $"Usa únicamente este contexto de la base de conocimiento:\n{knowledge}";
+
         var payload = new
         {
             model = _settings.Model,
             messages = new[]
             {
                 new { role = "system", content = _settings.SystemPrompt },
+                new { role = "system", content = contextPrompt },
                 new { role = "user", content = request.Message }
             }
         };

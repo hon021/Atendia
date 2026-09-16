@@ -13,8 +13,15 @@ public interface IBotRepository
 {
     void Add(Bot bot);
     Bot? GetById(string id);
+    Bot? GetById(string id, string tenantId);
     Bot? GetByPublicKey(string publicKey);
     IReadOnlyList<Bot> GetByTenantId(string tenantId);
+}
+
+public interface IBotConfigurationRepository
+{
+    BotConfiguration? GetByBotId(string tenantId, string botId);
+    void Upsert(BotConfiguration configuration);
 }
 
 public interface IConversationRepository
@@ -22,6 +29,7 @@ public interface IConversationRepository
     void Add(Conversation conversation);
     Conversation? GetById(string id, string tenantId, string botId);
     IReadOnlyList<Conversation> GetByTenantId(string tenantId, string botId);
+    bool SetStatus(string id, string tenantId, string botId, string status);
 }
 
 public interface IMessageRepository
@@ -34,10 +42,17 @@ public interface ILeadRepository
 {
     void Add(Lead lead);
     IReadOnlyList<Lead> GetByTenantId(string tenantId);
+    IReadOnlyList<Lead> GetByTenantIdAndBotId(string tenantId, string botId);
 }
 
 public interface IUsageRepository
 {
     void Add(UsageRecord usageRecord);
     IReadOnlyList<UsageRecord> GetByTenantId(string tenantId);
+}
+
+public interface IAuditRepository
+{
+    void Add(AuditEvent auditEvent);
+    IReadOnlyList<AuditEvent> GetByTenantId(string tenantId);
 }

@@ -5,7 +5,7 @@ namespace Atendia.Application;
 
 public interface IChatModel
 {
-    Task<ChatResponse> GenerateAsync(ChatRequest request, CancellationToken cancellationToken);
+    Task<ChatResponse> GenerateAsync(ChatRequest request, ChatContext context, CancellationToken cancellationToken);
 }
 
 public sealed class ChatContext
@@ -21,6 +21,7 @@ public sealed class ChatService
 {
     private readonly IChatModel _chatModel;
     private readonly IKnowledgeService _knowledgeService;
+    private readonly IBotConfigurationRepository _botConfigurationRepository;
     private readonly IConversationRepository _conversationRepository;
     private readonly IMessageRepository _messageRepository;
     private readonly IUsageRepository _usageRepository;
@@ -28,12 +29,14 @@ public sealed class ChatService
     public ChatService(
         IChatModel chatModel,
         IKnowledgeService knowledgeService,
+        IBotConfigurationRepository botConfigurationRepository,
         IConversationRepository conversationRepository,
         IMessageRepository messageRepository,
         IUsageRepository usageRepository)
     {
         _chatModel = chatModel;
         _knowledgeService = knowledgeService;
+        _botConfigurationRepository = botConfigurationRepository;
         _conversationRepository = conversationRepository;
         _messageRepository = messageRepository;
         _usageRepository = usageRepository;
@@ -66,10 +69,21 @@ public sealed class ChatService
             Content = request.Message
         });
 
-        var context = BuildContext(request);
-        _ = context;
+        if (string.Equals(conversation.Status, "HUMAN_HANDOFF", StringComparison.Ordinal))
+        {
+            return new ChatResponse
+            {
+                TenantId = request.TenantId,
+                BotId = request.BotId,
+                ConversationId = conversation.Id,
+                Content = "Tu conversación está siendo atendida por una persona. Te responderemos pronto.",
+                Status = "HUMAN_HANDOFF"
+            };
+        }
+
+        var context = await BuildContextAsync(request, cancellationToken);
         var stopwatch = Stopwatch.StartNew();
-        var response = await _chatModel.GenerateAsync(request, cancellationToken);
+        var response = await _chatModel.GenerateAsync(request, context, cancellationToken);
         stopwatch.Stop();
 
         if (!string.Equals(response.TenantId, request.TenantId, StringComparison.Ordinal))
@@ -86,6 +100,7 @@ public sealed class ChatService
         {
             response.ConversationId = conversation.Id;
         }
+        response.Status = conversation.Status;
 
         _messageRepository.Add(new Message
         {
@@ -142,9 +157,9 @@ public sealed class ChatService
         return Math.Max(1, (content.Length + 3) / 4);
     }
 
-    private ChatContext BuildContext(ChatRequest request)
+    private async Task<ChatContext> BuildContextAsync(ChatRequest request, CancellationToken cancellationToken)
     {
-        var knowledge = _knowledgeService.Search(request.TenantId, request.BotId, request.Message);
+        var knowledge = await _knowledgeService.SearchAsync(request.TenantId, request.BotId, request.Message, cancellationToken);
 
         var history = new List<string>
         {
@@ -155,7 +170,7 @@ public sealed class ChatService
         {
             TenantId = request.TenantId,
             BotId = request.BotId,
-            BotConfiguration = new BotConfiguration
+            BotConfiguration = _botConfigurationRepository.GetByBotId(request.TenantId, request.BotId) ?? new BotConfiguration
             {
                 BotId = request.BotId,
                 TenantId = request.TenantId,

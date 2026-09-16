@@ -2,7 +2,7 @@
 
 Atendia es un SaaS multi-tenant para que las PYMEs creen, configuren, desplieguen y supervisen un agente de atención al cliente basado en IA.
 
-## Estado actual del proyecto (2026-09-14)
+## Estado actual del proyecto (2026-09-16)
 
 El proyecto ya dejó atrás la etapa de "esqueleto puro" y está en una fase de MVP técnico operativo:
 
@@ -13,7 +13,8 @@ El proyecto ya dejó atrás la etapa de "esqueleto puro" y está en una fase de 
 - La lógica base de tenant, bot, chat y conocimiento ya fue definida en la capa de aplicación.
 - La Knowledge Base ya tiene una implementación EF-backed con `EfKnowledgeService` y la creación de tenant/bot ya persiste con repositorios EF.
 - El chat público ya puede autenticarse mediante la clave pública del bot y persistir conversaciones, mensajes y uso.
-- La prioridad actual es completar RAG vectorial, onboarding administrativo, handoff, leads y validación con piloto.
+- RAG vectorial, autorización por recurso, auditoría, onboarding API, gestión de FAQ, leads y handoff mínimo ya están implementados.
+- La prioridad actual es conectar el frontend administrativo, configurar PostgreSQL/pgvector en un entorno real, añadir notificaciones de handoff y validar un piloto.
 
 ## Estructura del repositorio
 
@@ -48,21 +49,26 @@ El proyecto ya dejó atrás la etapa de "esqueleto puro" y está en una fase de 
 - Persistencia EF de knowledge, conversaciones, mensajes y usage.
 - Registro/login con usuarios asociados a tenant.
 - Widget JavaScript instalable mediante `BotKey`.
-- Cinco pruebas automatizadas pasando.
+- Once pruebas automatizadas pasando.
+- Embeddings persistidos con pgvector y búsqueda semántica con filtro tenant/bot.
+- Políticas `AdminOnly` y `KnowledgeRead`, además de validación tenant-scoped de bots.
+- Auditoría persistente de autenticación y cambios sensibles.
+- Configuración persistente del bot y CRUD de FAQ con regeneración de embeddings.
+- Captura y consulta de leads por `BotKey`.
+- Estado `HUMAN_HANDOFF`, revisión de conversaciones y bloqueo del modelo después del escalamiento.
 
 ### 🔄 En progreso
 
-- Validación completa de pertenencia de bot y autorización por recurso.
+- Frontend administrativo para consumir configuración, FAQ, conversaciones y leads.
 - Configuración de entorno para dev/prod y CORS restrictivo.
 - Observabilidad y cálculo de costo real por modelo.
-- RAG vectorial con embeddings y pgvector.
+- Notificaciones para nuevos handoffs y revisión manual operativa.
 
 ### ⏳ Pendiente
 
 - Modelo local en VPS.
-- Handoff a humano operativo y captura de leads.
 - Dashboard de métricas y billing.
-- Frontend admin completo y onboarding sin intervención técnica.
+- Piloto real con PostgreSQL, proveedor de embeddings y proveedor LLM configurados.
 
 ## Roadmap principal
 
@@ -74,4 +80,4 @@ Consulta la documentación en:
 
 ## Nota de ejecución
 
-La compilación del backend fue verificada con `dotnet build` y la migración inicial fue creada con EF Core. La advertencia actual de OpenAPI no bloquea el arranque, pero debe revisarse en una siguiente iteración por seguridad y mantenimiento.
+La compilación del backend fue verificada con `dotnet build` y las 11 pruebas automatizadas pasan. Las migraciones incluyen `KnowledgeEmbeddings`, `AuditEvents` y `LeadStatus`. La advertencia actual de OpenAPI y la vulnerabilidad reportada de Npgsql deben revisarse antes del piloto.

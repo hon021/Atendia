@@ -29,7 +29,7 @@ El objetivo de esta fase es que el flujo completo use datos reales y pueda proba
 
 - Finalizar la estructura real de `Tenant`, `Bot`, `KnowledgeItem`, `Conversation`, `Message`, `Lead` y `UsageRecord`.
 - Confirmar claves primarias, índices y relaciones según el caso de uso.
-- [ ] Implementar embeddings, índice vectorial y búsqueda semántica con filtro obligatorio por tenant.
+- [x] Implementar embeddings, índice HNSW vectorial y búsqueda semántica con filtro obligatorio por tenant y bot.
 
 ### 3. Migraciones adicionales
 
@@ -44,13 +44,13 @@ El objetivo de esta fase es que el flujo completo use datos reales y pueda proba
 
 - [x] Garantizar que chat, bots y knowledge identifiquen el tenant autenticado o la credencial del bot.
 - [x] No depender del `tenantId` enviado por cliente como fuente de verdad.
-- [ ] Validar pertenencia del `BotId` a cada tenant y restringir creación de tenants.
+- [x] Validar pertenencia del `BotId` a cada tenant y restringir operaciones administrativas por rol.
 
 ### 5. Autenticación y autorización
 
 - [x] Definir mecanismo de login y usuario asociado a tenant.
-- [ ] Crear políticas para `Admin` / `Operator` / `CustomerSupport`.
-- [ ] Registrar auditoría básica de eventos sensibles.
+- [x] Crear políticas para `Admin` / `Operator` / `CustomerSupport`.
+- [x] Registrar auditoría básica de eventos sensibles.
 
 ### 6. Guardrails
 
@@ -87,16 +87,17 @@ El objetivo de esta fase es que el flujo completo use datos reales y pueda proba
 ### 10. Widget web y onboarding
 
 - [x] Finalizar el widget embebido.
-- [ ] Crear configuración del negocio en admin.
-- [ ] Cargar Knowledge Base desde una interfaz administrativa.
+- [x] Crear API de configuración del negocio y del bot.
+- [x] Cargar y gestionar Knowledge Base mediante API tenant-scoped.
 - [x] Publicar mediante un script con `BotKey`.
 - [ ] Validar conversaciones reales con un cliente piloto.
 
 ### 11. Handoff humano
 
-- [ ] Definir flujo de escalamiento.
-- [ ] Implementar estado `HUMAN_HANDOFF`.
-- [ ] Crear revisión manual y mecanismo de contacto/notificación.
+- [x] Definir flujo de escalamiento manual.
+- [x] Implementar estado `HUMAN_HANDOFF`.
+- [x] Crear revisión manual mediante endpoints de conversaciones y captura de leads.
+- [ ] Añadir notificación a agentes por handoff nuevo.
 
 ### Criterio de salida del MVP
 
@@ -123,12 +124,11 @@ Una PYME debe poder registrarse, configurar su bot, cargar FAQ, probarlo, public
 
 ## Orden recomendado de trabajo
 
-1. RAG con embeddings y búsqueda vectorial.
-2. Autorización por recurso y validaciones de tenant restantes.
-3. Onboarding administrativo y gestión de FAQ.
-4. Handoff y captura de leads.
-5. Costos reales, observabilidad y piloto.
-6. Evaluación del modelo local.
+1. Configurar y aplicar migraciones en PostgreSQL con pgvector.
+2. Construir el frontend administrativo sobre los endpoints existentes.
+3. Añadir notificaciones y estados operativos para handoff.
+4. Costos reales, observabilidad y piloto.
+5. Evaluación del modelo local.
 
 ---
 

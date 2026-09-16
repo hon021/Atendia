@@ -22,12 +22,12 @@ Quedan fuera de este sprint: WhatsApp, billing, CRM, Redis, colas, modelo local 
 - [x] Derivar el tenant del contexto autenticado o de la credencial pública del bot.
 - [x] Crear repositorios para `Conversation`, `Message` y `UsageRecord`.
 - [x] Conectar la lógica de chat con almacenamiento persistente de conversación.
-- [ ] Crear persistencia y flujo de `Lead`.
-- [ ] Confirmar que FAQ y retrieval usan embeddings persistidos y filtro por tenant.
+- [x] Crear persistencia y flujo de `Lead`.
+- [x] Confirmar que FAQ y retrieval usan embeddings persistidos y filtro por tenant y bot.
 
 ### Estado
 
-En progreso.
+Completada a nivel backend; pendiente validación con PostgreSQL real.
 
 ---
 
@@ -36,10 +36,10 @@ En progreso.
 ### Tareas
 
 - [x] Definir el origen real del `tenantId` (usuario autenticado o `BotKey`).
-- [ ] Validar pertenencia del `BotId` en todos los endpoints críticos.
+- [x] Validar pertenencia del `BotId` en todos los endpoints críticos.
 - [x] Proteger acceso inicial a knowledge y bot por tenant.
-- [ ] Añadir políticas completas de roles `Admin` / `Operator`.
-- [ ] Definir políticas simples de auditoría para eventos sensibles.
+- [x] Añadir políticas de roles `Admin` / `Operator` / `CustomerSupport`.
+- [x] Definir políticas simples de auditoría para eventos sensibles.
 - [ ] Añadir guardrails para información desconocida, prompt injection y secretos.
 
 ### Estado
@@ -66,13 +66,13 @@ En progreso.
 ### Tareas
 
 - [x] Finalizar el widget embebible con `BotKey`.
-- [ ] Crear configuración administrativa mínima del negocio y del bot.
-- [ ] Permitir cargar FAQ y publicar el widget sin intervención técnica.
+- [x] Crear configuración administrativa mínima del negocio y del bot vía API.
+- [x] Permitir cargar y gestionar FAQ vía API; falta conectar el frontend.
 - [x] Crear página de prueba para instalación del widget.
 
 ### Estado
 
-Pendiente.
+Backend listo; frontend administrativo pendiente.
 
 ---
 
@@ -82,7 +82,7 @@ Pendiente.
 
 - [ ] Preparar un caso de uso concreto para un cliente piloto.
 - [ ] Crear un tenant demo con FAQ útil.
-- [ ] Probar un flujo completo de conversation -> answer -> lead -> handoff.
+- [x] Implementar el flujo backend de conversation -> answer -> lead -> handoff.
 - [ ] Probar el flujo de conversación desconocida -> handoff manual.
 - [ ] Evaluar la tasa de resolución, escalamiento y costo.
 - [ ] Rediseñar la configuración mínima del bot según resultados reales.
@@ -116,5 +116,5 @@ El sprint se considera listo cuando:
 - cada request está validado por tenant,
 - el widget puede instalarse y conectarse a un bot,
 - existe tracking de costo por conversación,
-- existe un handoff manual mínimo,
+- existe un handoff manual mínimo y captura de leads,
 - y el flujo completo puede probarse con un cliente piloto real.

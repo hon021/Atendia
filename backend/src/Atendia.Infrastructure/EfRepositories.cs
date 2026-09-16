@@ -52,6 +52,13 @@ public sealed class EfBotRepository : IBotRepository
         return _dbContext.Bots.AsNoTracking().FirstOrDefault(x => x.Id == id);
     }
 
+    public Bot? GetById(string id, string tenantId)
+    {
+        return _dbContext.Bots
+            .AsNoTracking()
+            .FirstOrDefault(x => x.Id == id && x.TenantId == tenantId);
+    }
+
     public Bot? GetByPublicKey(string publicKey)
     {
         return _dbContext.Bots.AsNoTracking().FirstOrDefault(x => x.PublicKey == publicKey);
@@ -63,6 +70,78 @@ public sealed class EfBotRepository : IBotRepository
             .AsNoTracking()
             .Where(x => x.TenantId == tenantId)
             .OrderBy(x => x.Name)
+            .ToList();
+    }
+}
+
+public sealed class EfBotConfigurationRepository : IBotConfigurationRepository
+{
+    private readonly AtendiaDbContext _dbContext;
+
+    public EfBotConfigurationRepository(AtendiaDbContext dbContext)
+    {
+        _dbContext = dbContext;
+    }
+
+    public BotConfiguration? GetByBotId(string tenantId, string botId)
+    {
+        return _dbContext.BotConfigurations.AsNoTracking()
+            .FirstOrDefault(x => x.TenantId == tenantId && x.BotId == botId);
+    }
+
+    public void Upsert(BotConfiguration configuration)
+    {
+        ArgumentNullException.ThrowIfNull(configuration);
+        var existing = _dbContext.BotConfigurations.FirstOrDefault(x =>
+            x.TenantId == configuration.TenantId && x.BotId == configuration.BotId);
+
+        if (existing is null)
+        {
+            if (string.IsNullOrWhiteSpace(configuration.Id))
+            {
+                configuration.Id = Guid.NewGuid().ToString("N");
+            }
+
+            _dbContext.BotConfigurations.Add(configuration);
+        }
+        else
+        {
+            configuration.Id = existing.Id;
+            _dbContext.Entry(existing).CurrentValues.SetValues(configuration);
+        }
+
+        _dbContext.SaveChanges();
+    }
+}
+
+public sealed class EfAuditRepository : IAuditRepository
+{
+    private readonly AtendiaDbContext _dbContext;
+
+    public EfAuditRepository(AtendiaDbContext dbContext)
+    {
+        _dbContext = dbContext;
+    }
+
+    public void Add(AuditEvent auditEvent)
+    {
+        ArgumentNullException.ThrowIfNull(auditEvent);
+        if (string.IsNullOrWhiteSpace(auditEvent.Id))
+        {
+            auditEvent.Id = Guid.NewGuid().ToString("N");
+        }
+
+        auditEvent.TimestampUtc = DateTime.UtcNow;
+        _dbContext.AuditEvents.Add(auditEvent);
+        _dbContext.SaveChanges();
+    }
+
+    public IReadOnlyList<AuditEvent> GetByTenantId(string tenantId)
+    {
+        return _dbContext.AuditEvents
+            .AsNoTracking()
+            .Where(x => x.TenantId == tenantId)
+            .OrderByDescending(x => x.TimestampUtc)
             .ToList();
     }
 }
@@ -95,6 +174,20 @@ public sealed class EfConversationRepository : IConversationRepository
             .Where(x => x.TenantId == tenantId && x.BotId == botId)
             .OrderByDescending(x => x.CreatedAtUtc)
             .ToList();
+    }
+
+    public bool SetStatus(string id, string tenantId, string botId, string status)
+    {
+        var conversation = _dbContext.Conversations.FirstOrDefault(x =>
+            x.Id == id && x.TenantId == tenantId && x.BotId == botId);
+        if (conversation is null)
+        {
+            return false;
+        }
+
+        conversation.Status = status;
+        _dbContext.SaveChanges();
+        return true;
     }
 }
 
@@ -143,6 +236,14 @@ public sealed class EfLeadRepository : ILeadRepository
     {
         return _dbContext.Leads.AsNoTracking()
             .Where(x => x.TenantId == tenantId)
+            .OrderByDescending(x => x.CreatedAtUtc)
+            .ToList();
+    }
+
+    public IReadOnlyList<Lead> GetByTenantIdAndBotId(string tenantId, string botId)
+    {
+        return _dbContext.Leads.AsNoTracking()
+            .Where(x => x.TenantId == tenantId && x.BotId == botId)
             .OrderByDescending(x => x.CreatedAtUtc)
             .ToList();
     }

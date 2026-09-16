@@ -1,5 +1,7 @@
 ﻿namespace Atendia.Domain;
 
+using Pgvector;
+
 public sealed class Tenant
 {
     public string Id { get; set; } = string.Empty;
@@ -41,6 +43,7 @@ public sealed class KnowledgeItem
     public string Title { get; set; } = string.Empty;
     public string Content { get; set; } = string.Empty;
     public string SourceType { get; set; } = "faq";
+    public Vector? Embedding { get; set; }
     public DateTime CreatedAtUtc { get; set; } = DateTime.UtcNow;
 }
 
@@ -72,6 +75,7 @@ public sealed class Lead
     public string Email { get; set; } = string.Empty;
     public string? Phone { get; set; }
     public string? Interest { get; set; }
+    public string Status { get; set; } = "NEW";
     public DateTime CreatedAtUtc { get; set; } = DateTime.UtcNow;
 }
 
@@ -87,6 +91,19 @@ public sealed class UsageRecord
     public int TotalTokens => InputTokens + OutputTokens;
     public decimal EstimatedCost { get; set; }
     public long LatencyMs { get; set; }
+    public DateTime TimestampUtc { get; set; } = DateTime.UtcNow;
+}
+
+public sealed class AuditEvent
+{
+    public string Id { get; set; } = string.Empty;
+    public string? TenantId { get; set; }
+    public string? UserId { get; set; }
+    public string Action { get; set; } = string.Empty;
+    public string ResourceType { get; set; } = string.Empty;
+    public string? ResourceId { get; set; }
+    public bool Succeeded { get; set; }
+    public string? Metadata { get; set; }
     public DateTime TimestampUtc { get; set; } = DateTime.UtcNow;
 }
 
@@ -109,4 +126,5 @@ public sealed class ChatResponse
     public int InputTokens { get; set; }
     public int OutputTokens { get; set; }
     public decimal EstimatedCost { get; set; }
+    public string Status { get; set; } = "AI_HANDLING";
 }

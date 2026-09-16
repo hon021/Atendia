@@ -13,14 +13,9 @@ El proyecto ya completó la fase inicial de infraestructura técnica y la base d
 - conversaciones, mensajes y uso persistidos,
 - widget JavaScript funcional para el piloto.
 
-No obstante, aún quedan tareas críticas para dejarlo operativo como producto real:
+El backend ya tiene autorización por recurso y políticas de roles, RAG con embeddings persistidos y búsqueda HNSW filtrada por tenant/bot, auditoría básica, onboarding y gestión de FAQ vía API, captura de leads y handoff humano mínimo.
 
-- completar autorización por recurso y roles operativos,
-- cerrar el pipeline RAG con embeddings y búsqueda filtrada por tenant,
-- cerrar métricas de costo real y observabilidad,
-- construir el onboarding administrativo,
-- implementar leads y handoff humano,
-- y validar el flujo completo con un cliente piloto.
+Aún faltan el frontend administrativo, notificaciones de handoff, costos reales/observabilidad y validación con un cliente piloto.
 
 ---
 
@@ -77,13 +72,13 @@ Permitir que una PYME cree su cuenta, configure su bot, publique un widget y res
 - Bot y configuración básica.
 - FAQ / conocimiento base mínima.
 - PostgreSQL + pgvector.
-- RAG simple con filtro por tenant; embeddings vectoriales quedan como siguiente bloque.
+- RAG simple con embeddings persistidos, pgvector, índice HNSW y filtro obligatorio por tenant y bot.
 - LLM con proveedor externo.
 - Web widget instalable.
 - Configuración mínima del bot y widget JavaScript.
 - Guardrails básicos.
 - Tracking de consumo y costo.
-- Preparación para handoff manual; operación completa queda pendiente.
+- Handoff manual con estado `HUMAN_HANDOFF`, bandeja de conversaciones y captura de leads.
 
 ### Arquitectura base
 
@@ -102,13 +97,13 @@ LLM Provider
 - Multi-tenancy estricto.
 - Validación de identidad y tenant en cada request.
 - No confiar en usuario/client para elegir tenant.
-- Persistencia de conversaciones, mensajes y uso; leads quedan pendientes.
+- Persistencia de conversaciones, mensajes, uso, leads y auditoría.
 - Respuestas sin inventar información.
 - Handoff a humano cuando no haya certeza.
 
 ### Resultado esperado
 
-Una PYME puede:
+Una PYME puede, mediante la API actual:
 
 - crear una cuenta,
 - configurar el bot,
@@ -116,6 +111,8 @@ Una PYME puede:
 - probar conversaciones,
 - publicar el widget,
 - ver conversaciones y consumo registrados,
+- gestionar su configuración y FAQ,
+- capturar leads,
 - y escalar manualmente los casos que requieran atención humana.
 
 ---
@@ -145,14 +142,12 @@ Hacer que el producto sea útil y administrable por una PYME sin intervención t
 
 ### Resultado esperado
 
-Una PYME puede administrar:
+El backend permite administrar:
 
 - su conocimiento,
 - su bot,
 - sus conversaciones,
-- y sus leads,
-
-sin depender de un desarrollador.
+- y sus leads; falta completar la interfaz administrativa.
 
 ---
 
@@ -164,10 +159,10 @@ Hacer una experiencia operativa real para atención al cliente.
 
 ### Funcionalidades
 
-- Escalación automática a humano.
-- Notificaciones a agentes.
-- Estados de handoff.
-- Panel para controlar las conversaciones.
+- Escalación manual a humano.
+- Notificaciones a agentes (pendiente).
+- Estado `HUMAN_HANDOFF` persistido.
+- Endpoints de revisión de conversaciones.
 - Integración con WhatsApp cuando sea viable.
 - Webhooks y eventos para CRM o automatizaciones.
 
