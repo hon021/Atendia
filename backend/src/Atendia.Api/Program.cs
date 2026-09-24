@@ -11,19 +11,36 @@ builder.Services.AddOpenApi();
 builder.Services.AddHttpClient();
 builder.Services.AddCors(options =>
 {
+    var defaultOrigins = new[]
+    {
+        "http://localhost:8000",
+        "http://127.0.0.1:8000",
+        "http://localhost:5500",
+        "http://127.0.0.1:5500",
+        "http://localhost:3000",
+        "http://127.0.0.1:3000"
+    };
+
     options.AddPolicy("Widget", policy =>
     {
         var origins = builder.Configuration.GetSection("Widget:AllowedOrigins").Get<string[]>();
-        if (origins is { Length: > 0 })
-        {
-            policy.WithOrigins(origins);
-        }
-        else
-        {
-            policy.AllowAnyOrigin();
-        }
+        var allowedOrigins = origins is { Length: > 0 } ? origins : defaultOrigins;
 
-        policy.AllowAnyHeader().AllowAnyMethod();
+        policy.WithOrigins(allowedOrigins)
+            .AllowAnyHeader()
+            .AllowAnyMethod()
+            .AllowCredentials();
+    });
+
+    options.AddPolicy("Frontend", policy =>
+    {
+        var origins = builder.Configuration.GetSection("Frontend:AllowedOrigins").Get<string[]>();
+        var allowedOrigins = origins is { Length: > 0 } ? origins : defaultOrigins;
+
+        policy.WithOrigins(allowedOrigins)
+            .AllowAnyHeader()
+            .AllowAnyMethod()
+            .AllowCredentials();
     });
 });
 builder.Services.AddIdentityCore<AppUser>(options =>
@@ -90,6 +107,7 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseHttpsRedirection();
+app.UseCors("Frontend");
 app.UseCors("Widget");
 app.UseAuthentication();
 app.UseAuthorization();

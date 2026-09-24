@@ -1,0 +1,141 @@
+### Variables locales
+# @host = https://localhost:5001
+# @cookie = 
+# @tenantId = 
+# @botId = 
+# @botKey = 
+# @conversationId = 
+
+### 1) Registro de empresa
+POST {{host}}/api/auth/register
+Content-Type: application/json
+
+{
+  "name": "Floristería Verde",
+  "email": "admin@floristeriaverde.test",
+  "password": "Password123"
+}
+
+### 2) Login
+POST {{host}}/api/auth/login
+Content-Type: application/json
+
+{
+  "email": "admin@floristeriaverde.test",
+  "password": "Password123"
+}
+
+### 3) Crear bot
+POST {{host}}/api/bots
+Content-Type: application/json
+Cookie: atendia.auth={{cookie}}
+
+{
+  "tenantId": "{{tenantId}}",
+  "name": "Bot de atención Floristería",
+  "businessDescription": "Atendemos consultas, pedidos y horarios."
+}
+
+### 4) Configurar bot
+PUT {{host}}/api/bots/{{botId}}/configuration
+Content-Type: application/json
+Cookie: atendia.auth={{cookie}}
+
+{
+  "businessName": "Floristería Verde",
+  "sector": "Floristería",
+  "contactPhone": "+34 600 000 000",
+  "contactEmail": "soporte@floristeriaverde.test",
+  "website": "https://floristeriaverde.test",
+  "handOffChannel": "WhatsApp / email",
+  "systemPrompt": "Eres el asistente de Floristería Verde. Responde con cortesía y ofrece derivación a humano cuando no tengas certeza."
+}
+
+### 5) Crear FAQ 1
+POST {{host}}/api/knowledge
+Content-Type: application/json
+Cookie: atendia.auth={{cookie}}
+
+{
+  "botId": "{{botId}}",
+  "title": "Horarios de atención",
+  "content": "Atendemos de lunes a viernes de 9:00 a 18:00 y sábados de 9:00 a 13:00.",
+  "sourceType": "faq"
+}
+
+### 6) Crear FAQ 2
+POST {{host}}/api/knowledge
+Content-Type: application/json
+Cookie: atendia.auth={{cookie}}
+
+{
+  "botId": "{{botId}}",
+  "title": "Envíos",
+  "content": "Realizamos entregas en 24 horas dentro de la ciudad con un coste adicional según la zona.",
+  "sourceType": "faq"
+}
+
+### 7) Crear FAQ 3
+POST {{host}}/api/knowledge
+Content-Type: application/json
+Cookie: atendia.auth={{cookie}}
+
+{
+  "botId": "{{botId}}",
+  "title": "Devoluciones",
+  "content": "Las devoluciones se gestionan en 7 días hábiles tras la entrega.",
+  "sourceType": "faq"
+}
+
+### 8) Consultar FAQs
+GET {{host}}/api/knowledge/{{tenantId}}/{{botId}}
+Cookie: atendia.auth={{cookie}}
+
+### 9) Chat público: primera pregunta
+POST {{host}}/api/chat
+Content-Type: application/json
+
+{
+  "botKey": "{{botKey}}",
+  "message": "¿Cuáles son sus horarios?",
+  "conversationId": null
+}
+
+### 10) Chat público: segunda pregunta
+POST {{host}}/api/chat
+Content-Type: application/json
+
+{
+  "botKey": "{{botKey}}",
+  "message": "¿Hacéis entregas?",
+  "conversationId": "{{conversationId}}"
+}
+
+### 11) Lead de cliente
+POST {{host}}/api/leads
+Content-Type: application/json
+
+{
+  "botKey": "{{botKey}}",
+  "name": "Ana García",
+  "email": "ana@ejemplo.com",
+  "phone": "+34 600 111 222",
+  "interest": "Quiero información sobre entregas"
+}
+
+### 12) Listar leads
+GET {{host}}/api/leads/{{botId}}
+Cookie: atendia.auth={{cookie}}
+
+### 13) Listar conversaciones
+GET {{host}}/api/conversations/{{botId}}
+Cookie: atendia.auth={{cookie}}
+
+### 14) Handoff manual
+POST {{host}}/api/conversations/{{conversationId}}/handoff
+Content-Type: application/json
+Cookie: atendia.auth={{cookie}}
+
+{
+  "botId": "{{botId}}"
+}

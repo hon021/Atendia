@@ -4,6 +4,29 @@
 
 Definir la prioridad inmediata para convertir el proyecto de una base técnica funcional en un MVP operativo con persistencia real, seguridad y métricas útiles.
 
+> Estado actualizado: el backend ya está funcional y validado por tests. La mayor brecha actual está en la operatividad del admin, la validación con PostgreSQL real y la preparación del piloto con un cliente real.
+
+---
+
+## Fase 0 — Validación del estado actual
+
+### Hecho
+
+- [x] API backend funcional y compilable.
+- [x] Base de datos con EF Core + PostgreSQL/pgvector.
+- [x] Autenticación por cookie con tenant-scoped access.
+- [x] Bot público con clave y persistencia de conversaciones.
+- [x] FAQ, leads y handoff mínimo funcionando.
+- [x] Suite de pruebas automatizadas pasando.
+- [x] Prototipo inicial de frontend admin y pruebas HTTP para validación del MVP.
+
+### Pendiente crítico
+
+- [ ] Resolver la vulnerabilidad reportada en `Npgsql`.
+- [ ] Validar flujo end-to-end con PostgreSQL real.
+- [ ] Completar el admin operativo para FAQ, conversaciones y leads.
+- [ ] Ejecutar piloto real con un caso de negocio concreto.
+
 ---
 
 ## Fase 1 — Cerrar el núcleo del MVP

@@ -2,19 +2,20 @@
 
 Atendia es un SaaS multi-tenant para que las PYMEs creen, configuren, desplieguen y supervisen un agente de atención al cliente basado en IA.
 
-## Estado actual del proyecto (2026-09-16)
+## Estado actual del proyecto (2026-09-24)
 
-El proyecto ya dejó atrás la etapa de "esqueleto puro" y está en una fase de MVP técnico operativo:
+El proyecto ya dejó atrás la etapa de "esqueleto puro" y está en una fase de MVP técnico operativo con base funcional sólida:
 
-- La API backend en ASP.NET Core compila correctamente.
-- La capa de infraestructura ya incluye EF Core y PostgreSQL/Npgsql.
+- La API backend en ASP.NET Core compila y su suite de pruebas pasa con éxito.
+- La capa de infraestructura ya incluye EF Core, PostgreSQL/Npgsql y soporte para pgvector.
 - Las migraciones de datos, Identity y `BotPublicKey` fueron generadas con EF Core.
 - La abstracción del proveedor LLM está implementada con `IChatModel` y `ExternalChatModel`.
 - La lógica base de tenant, bot, chat y conocimiento ya fue definida en la capa de aplicación.
-- La Knowledge Base ya tiene una implementación EF-backed con `EfKnowledgeService` y la creación de tenant/bot ya persiste con repositorios EF.
+- La Knowledge Base tiene una implementación EF-backed con `EfKnowledgeService` y la creación de tenant/bot persiste con repositorios EF.
 - El chat público ya puede autenticarse mediante la clave pública del bot y persistir conversaciones, mensajes y uso.
 - RAG vectorial, autorización por recurso, auditoría, onboarding API, gestión de FAQ, leads y handoff mínimo ya están implementados.
-- La prioridad actual es conectar el frontend administrativo, configurar PostgreSQL/pgvector en un entorno real, añadir notificaciones de handoff y validar un piloto.
+- Existe un prototipo inicial de frontend administrativo para registro, login, creación de bot y FAQ, además de una colección de pruebas HTTP para validar el flujo del MVP.
+- La prioridad actual es cerrar la operatividad del admin, validar PostgreSQL real, resolver la vulnerabilidad de `Npgsql` y ejecutar un piloto con un cliente real.
 
 ## Estructura del repositorio
 
@@ -59,16 +60,18 @@ El proyecto ya dejó atrás la etapa de "esqueleto puro" y está en una fase de 
 
 ### 🔄 En progreso
 
-- Frontend administrativo para consumir configuración, FAQ, conversaciones y leads.
-- Configuración de entorno para dev/prod y CORS restrictivo.
+- Frontend administrativo para consumir configuración, FAQ, conversaciones y leads (prototipo funcional en curso).
+- Configuración de entorno para dev/prod, CORS y cookies de sesión en navegador.
 - Observabilidad y cálculo de costo real por modelo.
 - Notificaciones para nuevos handoffs y revisión manual operativa.
+- Validación del flujo end-to-end con PostgreSQL real y pgvector.
 
 ### ⏳ Pendiente
 
 - Modelo local en VPS.
 - Dashboard de métricas y billing.
 - Piloto real con PostgreSQL, proveedor de embeddings y proveedor LLM configurados.
+- Resolver la vulnerabilidad reportada por NuGet en `Npgsql` antes del piloto comercial.
 
 ## Roadmap principal
 
@@ -80,4 +83,4 @@ Consulta la documentación en:
 
 ## Nota de ejecución
 
-La compilación del backend fue verificada con `dotnet build` y las 11 pruebas automatizadas pasan. Las migraciones incluyen `KnowledgeEmbeddings`, `AuditEvents` y `LeadStatus`. La advertencia actual de OpenAPI y la vulnerabilidad reportada de Npgsql deben revisarse antes del piloto.
+La compilación del backend fue verificada con `dotnet test` y las 11 pruebas automatizadas pasan. Las migraciones incluyen `KnowledgeEmbeddings`, `AuditEvents` y `LeadStatus`. El proyecto ya tiene un prototipo de admin y un conjunto de pruebas HTTP para validar el flujo del MVP. La vulnerabilidad reportada por NuGet en `Npgsql` y la validación con PostgreSQL real siguen siendo los puntos críticos antes del piloto.

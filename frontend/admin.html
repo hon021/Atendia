@@ -1,0 +1,168 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Atendia Admin</title>
+  <style>
+    :root {
+      --bg: #fffaf6;
+      --panel: #ffffff;
+      --ink: #231912;
+      --muted: #675a53;
+      --line: #ead8c9;
+      --accent: #d95f39;
+      --accent-strong: #b74d2d;
+      --success: #2f7a4d;
+      --shadow: 0 16px 36px rgba(35, 25, 18, 0.08);
+    }
+
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: linear-gradient(180deg, #fffaf6 0%, #f6efe8 100%);
+      color: var(--ink);
+      font: 16px/1.5 Arial, sans-serif;
+    }
+    .container { max-width: 1200px; margin: 0 auto; padding: 32px 20px 80px; }
+    h1, h2, h3 { margin: 0 0 12px; }
+    .topbar {
+      display: flex; justify-content: space-between; align-items: center; gap: 16px;
+      margin-bottom: 28px;
+    }
+    .badge { display: inline-flex; align-items: center; gap: 8px; padding: 8px 12px; border-radius: 999px; background: #f7e4d9; color: var(--accent-strong); font-weight: 700; }
+    .layout {
+      display: grid; grid-template-columns: 360px 1fr; gap: 24px;
+    }
+    .panel {
+      background: var(--panel); border: 1px solid var(--line); border-radius: 18px; box-shadow: var(--shadow);
+      padding: 20px;
+    }
+    form { display: grid; gap: 12px; }
+    label { display: grid; gap: 6px; font-size: 14px; color: var(--muted); }
+    input, textarea, select, button {
+      font: inherit;
+    }
+    input, textarea, select {
+      border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; background: white; color: var(--ink);
+    }
+    textarea { min-height: 100px; resize: vertical; }
+    button {
+      border: 0; border-radius: 10px; padding: 11px 16px; background: var(--accent); color: white; cursor: pointer; font-weight: 700;
+    }
+    button.secondary { background: #2f231d; }
+    button.ghost { background: #f0e6df; color: var(--ink); }
+    .status { min-height: 24px; color: var(--success); font-size: 14px; }
+    .status.error { color: #b3281c; }
+    .grid-2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+    .stack { display: grid; gap: 18px; }
+    .list {
+      display: grid; gap: 12px; margin-top: 10px;
+    }
+    .item {
+      border: 1px solid var(--line); border-radius: 12px; padding: 12px;
+      background: #fffdfb;
+    }
+    .muted { color: var(--muted); }
+    pre {
+      margin: 0; white-space: pre-wrap; word-break: break-word; background: #faf5f0; border: 1px solid var(--line); border-radius: 10px; padding: 12px; overflow: auto;
+    }
+    .hidden { display: none; }
+    @media (max-width: 900px) {
+      .layout { grid-template-columns: 1fr; }
+      .grid-2 { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="topbar">
+      <div>
+        <div class="badge">Atendia Admin</div>
+      </div>
+      <button id="logoutBtn" class="ghost hidden" type="button">Cerrar sesión</button>
+    </div>
+
+    <div class="layout">
+      <aside class="panel stack">
+        <section>
+          <h2>Autenticación</h2>
+          <form id="registerForm">
+            <label>Nombre de la empresa<input name="name" type="text" placeholder="Mi Negocio" required /></label>
+            <label>Email<input name="email" type="email" placeholder="admin@ejemplo.com" required /></label>
+            <label>Password<input name="password" type="password" placeholder="********" required /></label>
+            <button type="submit">Registrar empresa</button>
+          </form>
+          <div id="registerStatus" class="status"></div>
+        </section>
+
+        <section>
+          <form id="loginForm">
+            <label>Email<input name="email" type="email" placeholder="admin@ejemplo.com" required /></label>
+            <label>Password<input name="password" type="password" placeholder="********" required /></label>
+            <button class="secondary" type="submit">Iniciar sesión</button>
+          </form>
+          <div id="loginStatus" class="status"></div>
+        </section>
+      </aside>
+
+      <main class="stack">
+        <section class="panel hidden" id="appPanel">
+          <h2>Bot y configuración</h2>
+          <div class="grid-2">
+            <form id="botForm">
+              <label>Nombre del bot<input name="name" type="text" placeholder="Bot de soporte" required /></label>
+              <label>Descripción del negocio<textarea name="businessDescription" placeholder="Atendemos consultas de clientes y reservas."></textarea></label>
+              <button type="submit">Crear bot</button>
+            </form>
+
+            <form id="configForm">
+              <label>Nombre del negocio<input name="businessName" type="text" placeholder="Mi negocio" /></label>
+              <label>Sector<input name="sector" type="text" placeholder="Consultoría" /></label>
+              <label>Teléfono<input name="contactPhone" type="text" placeholder="+34 600 000 000" /></label>
+              <label>Email de contacto<input name="contactEmail" type="email" placeholder="soporte@ejemplo.com" /></label>
+              <label>Web<input name="website" type="url" placeholder="https://ejemplo.com" /></label>
+              <label>Canal handoff<input name="handOffChannel" type="text" placeholder="WhatsApp / email / soporte" /></label>
+              <button type="submit">Guardar configuración</button>
+            </form>
+          </div>
+          <div id="botStatus" class="status"></div>
+        </section>
+
+        <section class="panel hidden" id="knowledgePanel">
+          <h2>FAQ / Knowledge</h2>
+          <form id="knowledgeForm">
+            <label>Título<input name="title" type="text" placeholder="Horarios de atención" required /></label>
+            <label>Contenido<textarea name="content" placeholder="Atendemos de lunes a viernes de 9:00 a 18:00." required></textarea></label>
+            <button type="submit">Guardar FAQ</button>
+          </form>
+          <div id="knowledgeStatus" class="status"></div>
+          <div id="knowledgeList" class="list"></div>
+        </section>
+
+        <section class="panel hidden" id="widgetPanel">
+          <h2>Widget</h2>
+          <p class="muted">Usa esta etiqueta para insertar el chatbot en tu sitio.</p>
+          <pre id="widgetSnippet"></pre>
+        </section>
+
+        <section class="panel hidden" id="opsPanel">
+          <h2>Leads y conversaciones</h2>
+          <div class="grid-2">
+            <div>
+              <h3>Leads</h3>
+              <div id="leadsList" class="list"></div>
+            </div>
+            <div>
+              <h3>Conversaciones</h3>
+              <div id="conversationsList" class="list"></div>
+            </div>
+          </div>
+        </section>
+      </main>
+    </div>
+  </div>
+
+  <script src="admin.js"></script>
+</body>
+</html>
