@@ -1,4 +1,7 @@
 <Solution>
+  <Folder Name="/src/">
+    <Project Path="src/Atendia.Api/Atendia.Api.csproj" />
+  </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/Atendia.Tests/Atendia.Tests.csproj" />
   </Folder>

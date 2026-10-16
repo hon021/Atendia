@@ -69,6 +69,12 @@ public sealed class ChatService
             Content = request.Message
         });
 
+        if (string.Equals(conversation.Status, "RESOLVED", StringComparison.Ordinal))
+        {
+            _conversationRepository.SetStatus(conversation.Id, request.TenantId, request.BotId, "AI_HANDLING");
+            conversation.Status = "AI_HANDLING";
+        }
+
         if (string.Equals(conversation.Status, "HUMAN_HANDOFF", StringComparison.Ordinal))
         {
             return new ChatResponse

@@ -3,6 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="atendia-api-url" content="https://localhost:7028" />
   <title>Atendia Admin</title>
   <style>
     :root {
@@ -64,6 +65,8 @@
       background: #fffdfb;
     }
     .muted { color: var(--muted); }
+    .actions { display: flex; flex-wrap: wrap; gap: 8px; }
+    .conversation-detail { border-top: 1px solid var(--line); margin-top: 18px; padding-top: 18px; }
     pre {
       margin: 0; white-space: pre-wrap; word-break: break-word; background: #faf5f0; border: 1px solid var(--line); border-radius: 10px; padding: 12px; overflow: auto;
     }
@@ -84,7 +87,7 @@
     </div>
 
     <div class="layout">
-      <aside class="panel stack">
+      <aside class="panel stack" id="authPanel">
         <section>
           <h2>Autenticación</h2>
           <form id="registerForm">
@@ -109,6 +112,7 @@
       <main class="stack">
         <section class="panel hidden" id="appPanel">
           <h2>Bot y configuración</h2>
+          <label>Bot activo<select id="botSelect"><option value="">Cargando bots...</option></select></label>
           <div class="grid-2">
             <form id="botForm">
               <label>Nombre del bot<input name="name" type="text" placeholder="Bot de soporte" required /></label>
@@ -158,6 +162,14 @@
               <div id="conversationsList" class="list"></div>
             </div>
           </div>
+          <section class="conversation-detail hidden" id="conversationDetail">
+            <h3 id="conversationTitle">Conversación</h3>
+            <div id="conversationMessages" class="list"></div>
+            <div class="actions">
+              <button id="handoffBtn" class="secondary" type="button">Escalar a humano</button>
+              <button id="resolveBtn" class="ghost" type="button">Marcar resuelta</button>
+            </div>
+          </section>
         </section>
       </main>
     </div>

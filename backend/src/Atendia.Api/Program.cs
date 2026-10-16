@@ -205,6 +205,21 @@ app.MapPost("/api/auth/logout", async (SignInManager<AppUser> signInManager) =>
     return Results.NoContent();
 });
 
+app.MapGet("/api/auth/session", (ClaimsPrincipal user) =>
+{
+    var tenantId = user.FindFirstValue("tenant_id");
+    if (string.IsNullOrWhiteSpace(tenantId))
+    {
+        return Results.Unauthorized();
+    }
+
+    return Results.Ok(new
+    {
+        UserId = user.FindFirstValue(ClaimTypes.NameIdentifier),
+        TenantId = tenantId
+    });
+}).RequireAuthorization();
+
 app.MapPost("/api/chat", async (
     ChatRequest request,
     IBotRepository botRepository,
@@ -304,6 +319,17 @@ app.MapPost("/api/bots", (BotCreateRequest request, ClaimsPrincipal user, IBotSe
     });
     return Results.Ok(bot);
 }).RequireAuthorization("AdminOnly");
+
+app.MapGet("/api/bots", (ClaimsPrincipal user, IBotRepository botRepository) =>
+{
+    var tenantId = user.FindFirstValue("tenant_id");
+    if (string.IsNullOrWhiteSpace(tenantId))
+    {
+        return Results.Forbid();
+    }
+
+    return Results.Ok(botRepository.GetByTenantId(tenantId));
+}).RequireAuthorization("KnowledgeRead");
 
 app.MapGet("/api/bots/{botId}/configuration", (string botId, ClaimsPrincipal user, IBotRepository botRepository, IBotConfigurationRepository configurationRepository) =>
 {
@@ -449,6 +475,32 @@ app.MapPost("/api/conversations/{conversationId}/handoff", (string conversationI
     return Results.Ok(new { ConversationId = conversationId, Status = "HUMAN_HANDOFF" });
 }).RequireAuthorization("KnowledgeRead");
 
+app.MapPost("/api/conversations/{conversationId}/resolve", (string conversationId, HandoffRequest request, ClaimsPrincipal user, IBotRepository botRepository, IConversationRepository conversationRepository, IAuditRepository auditRepository) =>
+{
+    var tenantId = user.FindFirstValue("tenant_id");
+    if (string.IsNullOrWhiteSpace(tenantId) || string.IsNullOrWhiteSpace(request.BotId))
+    {
+        return Results.BadRequest(new { message = "BotId es obligatorio." });
+    }
+
+    if (botRepository.GetById(request.BotId, tenantId) is null ||
+        !conversationRepository.SetStatus(conversationId, tenantId, request.BotId, "RESOLVED"))
+    {
+        return Results.NotFound(new { message = "La conversación no existe para el tenant y bot indicados." });
+    }
+
+    auditRepository.Add(new AuditEvent
+    {
+        TenantId = tenantId,
+        UserId = user.FindFirstValue(ClaimTypes.NameIdentifier),
+        Action = "conversation.resolve",
+        ResourceType = "conversation",
+        ResourceId = conversationId,
+        Succeeded = true
+    });
+    return Results.Ok(new { ConversationId = conversationId, Status = "RESOLVED" });
+}).RequireAuthorization("KnowledgeRead");
+
 app.MapGet("/api/conversations/{botId}", (string botId, ClaimsPrincipal user, IBotRepository botRepository, IConversationRepository conversationRepository) =>
 {
     var tenantId = user.FindFirstValue("tenant_id");
@@ -463,6 +515,23 @@ app.MapGet("/api/conversations/{botId}", (string botId, ClaimsPrincipal user, IB
     }
 
     return Results.Ok(conversationRepository.GetByTenantId(tenantId, botId));
+}).RequireAuthorization("KnowledgeRead");
+
+app.MapGet("/api/conversations/{botId}/{conversationId}/messages", (string botId, string conversationId, ClaimsPrincipal user, IBotRepository botRepository, IConversationRepository conversationRepository, IMessageRepository messageRepository) =>
+{
+    var tenantId = user.FindFirstValue("tenant_id");
+    if (string.IsNullOrWhiteSpace(tenantId))
+    {
+        return Results.Forbid();
+    }
+
+    if (botRepository.GetById(botId, tenantId) is null ||
+        conversationRepository.GetById(conversationId, tenantId, botId) is null)
+    {
+        return Results.NotFound(new { message = "La conversación no existe para el tenant autenticado." });
+    }
+
+    return Results.Ok(messageRepository.GetByConversationId(conversationId, tenantId));
 }).RequireAuthorization("KnowledgeRead");
 
 app.MapGet("/api/leads/{botId}", (string botId, ClaimsPrincipal user, IBotRepository botRepository, ILeadRepository leadRepository) =>

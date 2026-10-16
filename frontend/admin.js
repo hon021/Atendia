@@ -1,15 +1,20 @@
 const state = {
-  apiBase: 'https://localhost:5001',
+  apiBase: document.querySelector('meta[name="atendia-api-url"]')?.content || window.location.origin,
   tenantId: '',
   botId: '',
   botPublicKey: '',
   botName: '',
+  bots: [],
   knowledge: [],
   conversations: [],
-  leads: []
+  leads: [],
+  editingKnowledgeId: '',
+  activeConversationId: ''
 };
 
 const ui = {
+  authPanel: document.getElementById('authPanel'),
+  botSelect: document.getElementById('botSelect'),
   appPanel: document.getElementById('appPanel'),
   knowledgePanel: document.getElementById('knowledgePanel'),
   widgetPanel: document.getElementById('widgetPanel'),
@@ -27,7 +32,12 @@ const ui = {
   knowledgeList: document.getElementById('knowledgeList'),
   widgetSnippet: document.getElementById('widgetSnippet'),
   leadsList: document.getElementById('leadsList'),
-  conversationsList: document.getElementById('conversationsList')
+  conversationsList: document.getElementById('conversationsList'),
+  conversationDetail: document.getElementById('conversationDetail'),
+  conversationTitle: document.getElementById('conversationTitle'),
+  conversationMessages: document.getElementById('conversationMessages'),
+  handoffBtn: document.getElementById('handoffBtn'),
+  resolveBtn: document.getElementById('resolveBtn')
 };
 
 function setStatus(element, message, isError = false) {
@@ -66,6 +76,7 @@ async function apiFetch(path, options = {}) {
 }
 
 function setLoggedInUI(isLoggedIn) {
+  ui.authPanel.classList.toggle('hidden', isLoggedIn);
   ui.logoutBtn.classList.toggle('hidden', !isLoggedIn);
   ui.appPanel.classList.toggle('hidden', !isLoggedIn);
   ui.knowledgePanel.classList.toggle('hidden', !isLoggedIn);
@@ -91,8 +102,8 @@ async function registerCompany(event) {
 
     state.tenantId = result.tenantId;
     setStatus(ui.registerStatus, `Empresa creada. Tenant: ${state.tenantId}`);
-    ui.loginForm.email.value = payload.email;
-    ui.loginForm.password.value = payload.password;
+    setLoggedInUI(true);
+    await refreshAll();
   } catch (error) {
     setStatus(ui.registerStatus, error.message, true);
   }
@@ -162,7 +173,6 @@ async function createBot(event) {
     state.botPublicKey = result.publicKey;
     state.botName = result.name;
     ui.configForm.businessName.value = result.name;
-    ui.widgetSnippet.textContent = `<script src="http://localhost:8000/widget.js" data-bot-key="${result.publicKey}" data-api-url="https://localhost:5001" data-title="${result.name}"></script>`;
     setStatus(ui.botStatus, `Bot creado: ${result.name} (${result.publicKey})`);
     await refreshAll();
   } catch (error) {
@@ -217,10 +227,19 @@ async function saveKnowledge(event) {
 
   try {
     setStatus(ui.knowledgeStatus, '');
-    await apiFetch('/api/knowledge', {
-      method: 'POST',
-      body: JSON.stringify(payload)
-    });
+    if (state.editingKnowledgeId) {
+      await apiFetch(`/api/knowledge/${state.botId}/${state.editingKnowledgeId}`, {
+        method: 'PUT',
+        body: JSON.stringify(payload)
+      });
+      state.editingKnowledgeId = '';
+      ui.knowledgeForm.querySelector('button[type="submit"]').textContent = 'Guardar FAQ';
+    } else {
+      await apiFetch('/api/knowledge', {
+        method: 'POST',
+        body: JSON.stringify(payload)
+      });
+    }
     ui.knowledgeForm.reset();
     setStatus(ui.knowledgeStatus, 'FAQ guardada correctamente.');
     await refreshKnowledge();
@@ -241,6 +260,10 @@ async function refreshKnowledge() {
             <strong>${escapeHtml(item.title)}</strong>
             <div class="muted">${escapeHtml(item.sourceType || 'faq')}</div>
             <div>${escapeHtml(item.content)}</div>
+            <div class="actions">
+              <button class="ghost" type="button" data-action="edit" data-id="${escapeHtml(item.id)}">Editar</button>
+              <button class="secondary" type="button" data-action="delete" data-id="${escapeHtml(item.id)}">Eliminar</button>
+            </div>
           </div>
         `).join('')
       : '<div class="item">Todavía no hay FAQs cargadas.</div>';
@@ -276,6 +299,10 @@ async function refreshOps() {
           <div class="item">
             <strong>${escapeHtml(item.id)}</strong><br>
             <span class="muted">Estado: ${escapeHtml(item.status || 'OPEN')}</span>
+            <div class="actions">
+              <button class="ghost" type="button" data-action="view" data-id="${escapeHtml(item.id)}">Ver mensajes</button>
+              ${item.status === 'RESOLVED' ? '' : `<button class="secondary" type="button" data-action="handoff" data-id="${escapeHtml(item.id)}">Escalar</button>`}
+            </div>
           </div>
         `).join('')
       : '<div class="item">No hay conversaciones todavía.</div>';
@@ -285,8 +312,146 @@ async function refreshOps() {
 }
 
 async function refreshAll() {
-  await refreshKnowledge();
-  await refreshOps();
+  if (!state.tenantId) return;
+
+  try {
+    state.bots = await apiFetch('/api/bots');
+    const currentBot = state.bots.find(bot => bot.id === state.botId) || state.bots[0];
+    ui.botSelect.innerHTML = state.bots.length
+      ? state.bots.map(bot => `<option value="${escapeHtml(bot.id)}">${escapeHtml(bot.name)}</option>`).join('')
+      : '<option value="">Crea un bot para empezar</option>';
+
+    if (!currentBot) {
+      state.botId = '';
+      state.botPublicKey = '';
+      state.botName = '';
+      state.knowledge = [];
+      state.conversations = [];
+      state.leads = [];
+      ui.knowledgeList.innerHTML = '';
+      ui.conversationsList.innerHTML = '';
+      ui.leadsList.innerHTML = '';
+      ui.conversationDetail.classList.add('hidden');
+      ui.widgetSnippet.textContent = '';
+      return;
+    }
+
+    state.botId = currentBot.id;
+    state.botPublicKey = currentBot.publicKey;
+    state.botName = currentBot.name;
+    ui.botSelect.value = state.botId;
+    updateWidgetSnippet();
+    await Promise.all([refreshConfiguration(), refreshKnowledge(), refreshOps()]);
+  } catch (error) {
+    setStatus(ui.botStatus, error.message, true);
+  }
+}
+
+async function refreshConfiguration() {
+  if (!state.botId) return;
+
+  try {
+    const configuration = await apiFetch(`/api/bots/${state.botId}/configuration`);
+    for (const field of ['businessName', 'sector', 'contactPhone', 'contactEmail', 'website', 'handOffChannel']) {
+      ui.configForm.elements.namedItem(field).value = configuration[field] || '';
+    }
+  } catch (error) {
+    setStatus(ui.botStatus, error.message, true);
+  }
+}
+
+function updateWidgetSnippet() {
+  if (!state.botPublicKey) {
+    ui.widgetSnippet.textContent = '';
+    return;
+  }
+
+  const scriptUrl = new URL('widget.js', window.location.href).href;
+  ui.widgetSnippet.textContent = `<script src="${escapeHtml(scriptUrl)}" data-bot-key="${escapeHtml(state.botPublicKey)}" data-api-url="${escapeHtml(state.apiBase)}" data-title="${escapeHtml(state.botName)}"></script>`;
+}
+
+async function restoreSession() {
+  try {
+    const session = await apiFetch('/api/auth/session');
+    state.tenantId = session.tenantId;
+    setLoggedInUI(true);
+    await refreshAll();
+  } catch {
+    setLoggedInUI(false);
+  }
+}
+
+async function openConversation(conversationId) {
+  if (!state.botId) return;
+
+  try {
+    const messages = await apiFetch(`/api/conversations/${state.botId}/${conversationId}/messages`);
+    const conversation = state.conversations.find(item => item.id === conversationId);
+    state.activeConversationId = conversationId;
+    ui.conversationTitle.textContent = `Conversación ${conversationId} · ${conversation?.status || 'OPEN'}`;
+    ui.conversationMessages.innerHTML = messages.map(message => `
+      <div class="item">
+        <strong>${escapeHtml(message.sender)}</strong>
+        <div>${escapeHtml(message.content)}</div>
+      </div>
+    `).join('') || '<div class="item">Sin mensajes.</div>';
+    ui.handoffBtn.classList.toggle('hidden', conversation?.status === 'HUMAN_HANDOFF' || conversation?.status === 'RESOLVED');
+    ui.resolveBtn.classList.toggle('hidden', conversation?.status === 'RESOLVED');
+    ui.conversationDetail.classList.remove('hidden');
+  } catch (error) {
+    setStatus(ui.botStatus, error.message, true);
+  }
+}
+
+async function updateConversationStatus(action, conversationId) {
+  if (!conversationId || !state.botId) return;
+
+  try {
+    await apiFetch(`/api/conversations/${conversationId}/${action}`, {
+      method: 'POST',
+      body: JSON.stringify({ botId: state.botId })
+    });
+    await refreshAll();
+    await openConversation(conversationId);
+  } catch (error) {
+    setStatus(ui.botStatus, error.message, true);
+  }
+}
+
+async function handleKnowledgeAction(event) {
+  const button = event.target.closest('button[data-action]');
+  if (!button) return;
+
+  const item = state.knowledge.find(knowledge => knowledge.id === button.dataset.id);
+  if (!item) return;
+
+  if (button.dataset.action === 'edit') {
+    state.editingKnowledgeId = item.id;
+    ui.knowledgeForm.elements.namedItem('title').value = item.title;
+    ui.knowledgeForm.elements.namedItem('content').value = item.content;
+    ui.knowledgeForm.querySelector('button[type="submit"]').textContent = 'Guardar cambios';
+    return;
+  }
+
+  if (button.dataset.action === 'delete' && window.confirm(`¿Eliminar la FAQ "${item.title}"?`)) {
+    try {
+      await apiFetch(`/api/knowledge/${state.botId}/${item.id}`, { method: 'DELETE' });
+      await refreshKnowledge();
+    } catch (error) {
+      setStatus(ui.knowledgeStatus, error.message, true);
+    }
+  }
+}
+
+async function handleConversationListAction(event) {
+  const button = event.target.closest('button[data-action]');
+  if (!button) return;
+
+  if (button.dataset.action === 'view') {
+    await openConversation(button.dataset.id);
+  } else if (button.dataset.action === 'handoff') {
+    await updateConversationStatus('handoff', button.dataset.id);
+  }
 }
 
 function escapeHtml(value) {
@@ -303,6 +468,17 @@ ui.loginForm.addEventListener('submit', login);
 ui.botForm.addEventListener('submit', createBot);
 ui.configForm.addEventListener('submit', saveConfig);
 ui.knowledgeForm.addEventListener('submit', saveKnowledge);
+ui.botSelect.addEventListener('change', () => {
+  state.botId = ui.botSelect.value;
+  state.activeConversationId = '';
+  ui.conversationDetail.classList.add('hidden');
+  refreshAll();
+});
+ui.knowledgeList.addEventListener('click', handleKnowledgeAction);
+ui.conversationsList.addEventListener('click', handleConversationListAction);
+ui.handoffBtn.addEventListener('click', () => updateConversationStatus('handoff', state.activeConversationId));
+ui.resolveBtn.addEventListener('click', () => updateConversationStatus('resolve', state.activeConversationId));
 ui.logoutBtn.addEventListener('click', logout);
 
 setLoggedInUI(false);
+restoreSession();

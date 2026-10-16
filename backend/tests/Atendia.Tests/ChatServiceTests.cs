@@ -44,6 +44,43 @@ public class ChatServiceTests
     }
 
     [Fact]
+    public async Task SendAsync_ReopensResolvedConversationWhenCustomerReplies()
+    {
+        var provider = new FakeChatModel();
+        var options = new DbContextOptionsBuilder<AtendiaDbContext>()
+            .UseInMemoryDatabase(Guid.NewGuid().ToString())
+            .Options;
+
+        using var db = new AtendiaDbContext(options);
+        db.Conversations.Add(new Conversation
+        {
+            Id = "conversation-resolved",
+            TenantId = "tenant-1",
+            BotId = "bot-1",
+            Status = "RESOLVED"
+        });
+        db.SaveChanges();
+        var service = new ChatService(
+            provider,
+            new EfKnowledgeService(db, new ExternalEmbeddingService(new HttpClient(), new ChatProviderSettings())),
+            new EfBotConfigurationRepository(db),
+            new EfConversationRepository(db),
+            new EfMessageRepository(db),
+            new EfUsageRepository(db));
+
+        var result = await service.SendAsync(new ChatRequest
+        {
+            TenantId = "tenant-1",
+            BotId = "bot-1",
+            ConversationId = "conversation-resolved",
+            Message = "Tengo otra pregunta"
+        }, CancellationToken.None);
+
+        Assert.Equal("AI_HANDLING", result.Status);
+        Assert.Equal("AI_HANDLING", db.Conversations.Single().Status);
+    }
+
+    [Fact]
     public async Task SendAsync_DoesNotInvokeModelAfterHumanHandoff()
     {
         var provider = new CountingChatModel();
