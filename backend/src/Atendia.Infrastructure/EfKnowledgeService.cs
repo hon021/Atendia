@@ -29,15 +29,17 @@ public sealed class EfKnowledgeService : IKnowledgeService
             throw new InvalidOperationException("El botId es obligatorio.");
         }
 
-        var normalizedQuery = query?.Trim();
-        if (string.IsNullOrWhiteSpace(normalizedQuery))
-        {
-            return Array.Empty<KnowledgeItem>();
-        }
-
         var items = _dbContext.KnowledgeItems
             .AsNoTracking()
             .Where(x => x.TenantId == tenantId && x.BotId == botId);
+
+        var normalizedQuery = query?.Trim();
+        if (string.IsNullOrWhiteSpace(normalizedQuery))
+        {
+            return await items
+                .OrderByDescending(x => x.CreatedAtUtc)
+                .ToListAsync(cancellationToken);
+        }
 
         var queryEmbedding = await _embeddingService.GenerateAsync(normalizedQuery, cancellationToken);
         if (queryEmbedding is not null && _dbContext.Database.ProviderName?.Contains("Npgsql", StringComparison.Ordinal) == true)

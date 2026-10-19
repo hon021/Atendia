@@ -107,6 +107,19 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseHttpsRedirection();
+
+if (app.Environment.IsDevelopment())
+{
+    var frontendPath = Path.GetFullPath(Path.Combine(app.Environment.ContentRootPath, "../../../frontend"));
+    if (Directory.Exists(frontendPath))
+    {
+        app.UseStaticFiles(new StaticFileOptions
+        {
+            FileProvider = new Microsoft.Extensions.FileProviders.PhysicalFileProvider(frontendPath)
+        });
+    }
+}
+
 app.UseCors("Frontend");
 app.UseCors("Widget");
 app.UseAuthentication();

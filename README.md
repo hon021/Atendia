@@ -27,6 +27,32 @@ El proyecto ya dejó atrás la etapa de "esqueleto puro" y está en una fase de 
 - `docs/` - documentación del proyecto, estrategia y guía de implementación.
 - `scripts/` - scripts de automatización, despliegue y utilidades.
 
+## Desarrollo local con PostgreSQL
+
+Con PostgreSQL y pgvector instalados y las migraciones aplicadas, ejecuta desde la raiz del repositorio:
+
+```powershell
+.\scripts\Configure-LocalDatabase.ps1
+dotnet run --project backend/src/Atendia.Api --launch-profile https
+```
+
+El script solicita la password de PostgreSQL con entrada oculta y guarda la conexion en secretos locales de .NET, fuera del repositorio. Estos secretos no estan cifrados y solo deben usarse en desarrollo. Reinicia la API despues de modificar su configuracion local.
+
+Si PowerShell bloquea scripts, permite su ejecucion solo durante esa terminal con `Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass`. Si el navegador rechaza el certificado local, ejecuta `dotnet dev-certs https --trust` desde tu terminal y acepta el dialogo de confianza. No se necesita cambiar la politica de ejecucion global.
+
+Abre `https://localhost:7028/admin.html`. En Development, la API sirve el admin y el widget desde el mismo origen. Para servir el admin por separado, configura la meta etiqueta `atendia-api-url` con el origen de la API.
+
+Sin `ChatProvider:ApiKey`, el chat devuelve un aviso de proveedor no configurado y no genera embeddings; permite comprobar persistencia, pero no valida IA ni busqueda vectorial real. Configura la clave del proveedor mediante secretos locales, nunca en archivos versionados.
+
+### Verificacion local (2026-10-19)
+
+- PostgreSQL 18 y pgvector 0.8.7 instalados; las siete migraciones fueron aplicadas.
+- Flujo HTTP validado contra PostgreSQL: registro/login/logout, sesion, bot/configuracion, CRUD de FAQ, chat, historial, leads, handoff, resolucion y reapertura.
+- FAQ persistidas disponibles tras reiniciar la API; se corrigio el listado administrativo que devolvia vacio al buscar sin texto.
+- Un segundo tenant no pudo consultar configuracion, FAQ, mensajes ni leads del primero (HTTP 404).
+- Suite automatizada: 13 pruebas pasando. Se conservaron dos tenants identificados como pruebas locales; las cookies temporales fueron eliminadas.
+- Pendiente: respuestas y embeddings con proveedor real, evaluacion de RAG y prueba visual del flujo completo. El certificado HTTPS local sigue requiriendo confianza en el navegador.
+
 ## Stack actual
 
 - Backend: ASP.NET Core

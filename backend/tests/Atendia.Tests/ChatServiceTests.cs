@@ -144,6 +144,46 @@ public class ChatServiceTests
     }
 
     [Fact]
+    public async Task SearchAsync_EmptyQueryListsAllKnowledgeForTenantAndBot()
+    {
+        var options = new DbContextOptionsBuilder<AtendiaDbContext>()
+            .UseInMemoryDatabase(Guid.NewGuid().ToString())
+            .Options;
+
+        using var db = new AtendiaDbContext(options);
+        for (var index = 0; index < 7; index++)
+        {
+            db.KnowledgeItems.Add(new KnowledgeItem
+            {
+                Id = $"faq-{index}", TenantId = "tenant-1", BotId = "bot-1",
+                Title = $"FAQ {index}", Content = "Contenido"
+            });
+        }
+        db.KnowledgeItems.Add(new KnowledgeItem
+        {
+            Id = "other-tenant", TenantId = "tenant-2", BotId = "bot-1",
+            Title = "Otro tenant", Content = "Privado"
+        });
+        db.KnowledgeItems.Add(new KnowledgeItem
+        {
+            Id = "other-bot", TenantId = "tenant-1", BotId = "bot-2",
+            Title = "Otro bot", Content = "Privado"
+        });
+        db.SaveChanges();
+        var knowledge = new EfKnowledgeService(db,
+            new ExternalEmbeddingService(new HttpClient(), new ChatProviderSettings()));
+
+        var results = await knowledge.SearchAsync("tenant-1", "bot-1", "");
+
+        Assert.Equal(7, results.Count);
+        Assert.All(results, item =>
+        {
+            Assert.Equal("tenant-1", item.TenantId);
+            Assert.Equal("bot-1", item.BotId);
+        });
+    }
+
+    [Fact]
     public void CreateTenant_AssignsTenantIdAndName()
     {
         var options = new DbContextOptionsBuilder<AtendiaDbContext>()
