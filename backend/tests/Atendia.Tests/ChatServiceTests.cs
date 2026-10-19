@@ -2,11 +2,112 @@ using Atendia.Application;
 using Atendia.Domain;
 using Atendia.Infrastructure;
 using Microsoft.EntityFrameworkCore;
+using System.Net;
+using System.Text;
+using System.Text.Json;
 
 namespace Atendia.Tests;
 
 public class ChatServiceTests
 {
+    [Fact]
+    public async Task OllamaEmbedding_UsesRequestedDimensionsWithoutApiKey()
+    {
+        var calls = 0;
+        using var client = new HttpClient(new StubHttpHandler(async request =>
+        {
+            calls++;
+            Assert.Equal("http://localhost:11434/v1/embeddings", request.RequestUri!.ToString());
+            Assert.Null(request.Headers.Authorization);
+            using var payload = JsonDocument.Parse(await request.Content!.ReadAsStringAsync());
+            Assert.Equal(1536, payload.RootElement.GetProperty("dimensions").GetInt32());
+            Assert.Equal("qwen3-embedding:4b", payload.RootElement.GetProperty("model").GetString());
+            return new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new StringContent(JsonSerializer.Serialize(new
+                {
+                    data = new[] { new { embedding = new float[1536] } }
+                }), Encoding.UTF8, "application/json")
+            };
+        }));
+        var service = new ExternalEmbeddingService(client, new ChatProviderSettings
+        {
+            Provider = "Ollama", BaseUrl = "http://localhost:11434/v1/",
+            EmbeddingModel = "qwen3-embedding:4b", EmbeddingDimensions = 1536
+        });
+
+        var embedding = await service.GenerateAsync("Horario del negocio");
+
+        Assert.Equal(1, calls);
+        Assert.NotNull(embedding);
+        Assert.Equal(1536, embedding.Length);
+    }
+
+    [Fact]
+    public async Task OllamaChat_WorksWithoutApiKey()
+    {
+        var calls = 0;
+        using var client = new HttpClient(new StubHttpHandler(async request =>
+        {
+            calls++;
+            Assert.Equal("http://localhost:11434/v1/chat/completions", request.RequestUri!.ToString());
+            Assert.Null(request.Headers.Authorization);
+            using var payload = JsonDocument.Parse(await request.Content!.ReadAsStringAsync());
+            Assert.Equal("qwen2.5:3b", payload.RootElement.GetProperty("model").GetString());
+            Assert.Equal(512, payload.RootElement.GetProperty("max_tokens").GetInt32());
+            return new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new StringContent("{\"choices\":[{\"message\":{\"content\":\"Abrimos a las 9.\"}}],\"usage\":{\"prompt_tokens\":20,\"completion_tokens\":8}}", Encoding.UTF8, "application/json")
+            };
+        }));
+        var model = new ExternalChatModel(client, new ChatProviderSettings
+        {
+            Provider = "Ollama", BaseUrl = "http://localhost:11434/v1/", Model = "qwen2.5:3b"
+        });
+
+        var response = await model.GenerateAsync(new ChatRequest
+        {
+            TenantId = "tenant-1", BotId = "bot-1", Message = "Horario?"
+        }, new ChatContext(), CancellationToken.None);
+
+        Assert.Equal(1, calls);
+        Assert.Equal("Abrimos a las 9.", response.Content);
+        Assert.Equal(20, response.InputTokens);
+        Assert.Equal(8, response.OutputTokens);
+    }
+
+    [Fact]
+    public async Task OllamaEmbedding_RejectsUnexpectedDimensions()
+    {
+        using var client = new HttpClient(new StubHttpHandler(_ => Task.FromResult(
+            new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new StringContent("{\"data\":[{\"embedding\":[0.1,0.2,0.3]}]}", Encoding.UTF8, "application/json")
+            })));
+        var service = new ExternalEmbeddingService(client, new ChatProviderSettings
+        {
+            Provider = "Ollama", BaseUrl = "http://localhost:11434/v1",
+            EmbeddingModel = "qwen3-embedding:4b", EmbeddingDimensions = 1536
+        });
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() => service.GenerateAsync("Horario"));
+    }
+
+    [Fact]
+    public async Task ExternalProviders_WithoutApiKeyDoNotSendRequests()
+    {
+        using var client = new HttpClient(new StubHttpHandler(_ =>
+            throw new InvalidOperationException("No request should be sent without an API key.")));
+        var settings = new ChatProviderSettings();
+        var embedding = await new ExternalEmbeddingService(client, settings).GenerateAsync("Horario");
+        var response = await new ExternalChatModel(client, settings).GenerateAsync(
+            new ChatRequest { TenantId = "tenant-1", BotId = "bot-1", Message = "Horario?" },
+            new ChatContext(), CancellationToken.None);
+
+        Assert.Null(embedding);
+        Assert.Contains("API key", response.Content);
+    }
+
     [Fact]
     public async Task SendAsync_ReturnsProviderResponse()
     {
@@ -340,6 +441,14 @@ public class ChatServiceTests
 
         var lead = Assert.Single(leads);
         Assert.Equal("lead-1", lead.Id);
+    }
+
+    private sealed class StubHttpHandler(Func<HttpRequestMessage, Task<HttpResponseMessage>> handle) : HttpMessageHandler
+    {
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            return handle(request);
+        }
     }
 
     private sealed class FakeChatModel : IChatModel

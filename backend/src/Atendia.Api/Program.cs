@@ -84,7 +84,8 @@ if (!string.IsNullOrWhiteSpace(connectionString))
 
 var providerSettings = builder.Configuration.GetSection("ChatProvider").Get<ChatProviderSettings>() ?? new ChatProviderSettings();
 builder.Services.AddSingleton(providerSettings);
-builder.Services.AddHttpClient<IEmbeddingService, ExternalEmbeddingService>();
+builder.Services.AddHttpClient<IEmbeddingService, ExternalEmbeddingService>(client =>
+    client.Timeout = TimeSpan.FromMinutes(5));
 builder.Services.AddScoped<IKnowledgeService, EfKnowledgeService>();
 builder.Services.AddScoped<ITenantRepository, EfTenantRepository>();
 builder.Services.AddScoped<IBotRepository, EfBotRepository>();
@@ -94,7 +95,8 @@ builder.Services.AddScoped<IMessageRepository, EfMessageRepository>();
 builder.Services.AddScoped<ILeadRepository, EfLeadRepository>();
 builder.Services.AddScoped<IUsageRepository, EfUsageRepository>();
 builder.Services.AddScoped<IAuditRepository, EfAuditRepository>();
-builder.Services.AddScoped<IChatModel, ExternalChatModel>();
+builder.Services.AddHttpClient<IChatModel, ExternalChatModel>(client =>
+    client.Timeout = TimeSpan.FromMinutes(5));
 builder.Services.AddScoped<ChatService>();
 builder.Services.AddScoped<ITenantService, TenantService>();
 builder.Services.AddScoped<IBotService, BotService>();

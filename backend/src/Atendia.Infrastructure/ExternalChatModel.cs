@@ -19,7 +19,8 @@ public sealed class ExternalChatModel : IChatModel
 
     public async Task<ChatResponse> GenerateAsync(ChatRequest request, ChatContext context, CancellationToken cancellationToken)
     {
-        if (string.IsNullOrWhiteSpace(_settings.ApiKey) || _settings.ApiKey == "SET_YOUR_API_KEY")
+        var isOllama = string.Equals(_settings.Provider, "Ollama", StringComparison.OrdinalIgnoreCase);
+        if (!isOllama && (string.IsNullOrWhiteSpace(_settings.ApiKey) || _settings.ApiKey == "SET_YOUR_API_KEY"))
         {
             return new ChatResponse
             {
@@ -35,19 +36,26 @@ public sealed class ExternalChatModel : IChatModel
             ? "No hay artículos relevantes en la base de conocimiento."
             : $"Usa únicamente este contexto de la base de conocimiento:\n{knowledge}";
 
-        var payload = new
+        var payload = new Dictionary<string, object>
         {
-            model = _settings.Model,
-            messages = new[]
+            ["model"] = _settings.Model,
+            ["messages"] = new[]
             {
                 new { role = "system", content = _settings.SystemPrompt },
                 new { role = "system", content = contextPrompt },
                 new { role = "user", content = request.Message }
             }
         };
+        if (isOllama)
+        {
+            payload["max_tokens"] = 512;
+        }
 
-        using var httpRequest = new HttpRequestMessage(HttpMethod.Post, _settings.BaseUrl + "/chat/completions");
-        httpRequest.Headers.Authorization = new AuthenticationHeaderValue("Bearer", _settings.ApiKey);
+        using var httpRequest = new HttpRequestMessage(HttpMethod.Post, _settings.BaseUrl.TrimEnd('/') + "/chat/completions");
+        if (!isOllama)
+        {
+            httpRequest.Headers.Authorization = new AuthenticationHeaderValue("Bearer", _settings.ApiKey);
+        }
         httpRequest.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
         httpRequest.Content = new StringContent(JsonSerializer.Serialize(payload), Encoding.UTF8, "application/json");
 

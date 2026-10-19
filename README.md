@@ -2,37 +2,39 @@
 
 Atendia es un SaaS multi-tenant para que las PYMEs creen, configuren, desplieguen y supervisen un agente de atención al cliente basado en IA.
 
-## Estado actual del proyecto (2026-09-24)
+## Estado actual del proyecto (2026-10-19)
 
-El proyecto ya dejó atrás la etapa de "esqueleto puro" y está en una fase de MVP técnico operativo con base funcional sólida:
+Atendia tiene el núcleo técnico del MVP validado contra PostgreSQL real y una primera prueba de RAG con modelos locales. Todavía no está listo para un piloto autónomo con clientes.
 
-- La API backend en ASP.NET Core compila y su suite de pruebas pasa con éxito.
-- La capa de infraestructura ya incluye EF Core, PostgreSQL/Npgsql y soporte para pgvector.
-- Las migraciones de datos, Identity y `BotPublicKey` fueron generadas con EF Core.
-- La abstracción del proveedor LLM está implementada con `IChatModel` y `ExternalChatModel`.
-- La lógica base de tenant, bot, chat y conocimiento ya fue definida en la capa de aplicación.
-- La Knowledge Base tiene una implementación EF-backed con `EfKnowledgeService` y la creación de tenant/bot persiste con repositorios EF.
-- El chat público ya puede autenticarse mediante la clave pública del bot y persistir conversaciones, mensajes y uso.
-- RAG vectorial, autorización por recurso, auditoría, onboarding API, gestión de FAQ, leads y handoff mínimo ya están implementados.
-- Existe un prototipo inicial de frontend administrativo para registro, login, creación de bot y FAQ, además de una colección de pruebas HTTP para validar el flujo del MVP.
-- La prioridad actual es cerrar la operatividad del admin, validar PostgreSQL real, resolver la vulnerabilidad de `Npgsql` y ejecutar un piloto con un cliente real.
+- API ASP.NET Core sobre .NET 10 compilando y 17 pruebas automatizadas pasando.
+- Entorno local con PostgreSQL 18, pgvector 0.8.7 y las siete migraciones aplicadas.
+- Flujo HTTP comprobado: registro/login/logout, sesión, bots, configuración, CRUD de FAQ, chat, historial, leads, handoff, resolución y reapertura.
+- Aislamiento comprobado entre dos tenants en configuración, FAQ, mensajes y leads.
+- Ollama instalado y probado: chat con `qwen2.5:3b` y embeddings con `qwen3-embedding:4b`, usando 1536 dimensiones sin modificar el esquema.
+- Una respuesta RAG recuperó un dato exclusivo de una FAQ persistida en PostgreSQL. Esta comprobación puntual no sustituye una evaluación de calidad.
+- Admin funcional en desarrollo para seleccionar bots, gestionar FAQ, revisar mensajes y escalar o resolver conversaciones. La prueba visual completa de admin y widget sigue pendiente.
+- Auditoría NuGet de la API sin vulnerabilidades reportadas por las fuentes consultadas; el conflicto de versiones de Pgvector y la alerta de OpenAPI fueron corregidos.
+
+La prioridad inmediata es probar el flujo en navegador, evaluar respuestas y recuperación con preguntas reales, completar el handoff humano operativo y preparar un piloto acotado.
 
 ## Estructura del repositorio
 
 - `backend/` - API y lógica de negocio.
 - `backend/src/` - código fuente de la aplicación backend.
 - `backend/tests/` - pruebas del backend.
-- `frontend/` - aplicación administrativa y dashboard.
-- `infra/` - infraestructura, Docker, configuración de despliegue y entorno.
+- `frontend/` - prototipo administrativo, widget y página de demostración.
+- `infra/` - carpeta reservada; todavía sin infraestructura de despliegue.
 - `docs/` - documentación del proyecto, estrategia y guía de implementación.
-- `scripts/` - scripts de automatización, despliegue y utilidades.
+- `scripts/` - configuración de la conexión local mediante secretos de .NET.
 
 ## Desarrollo local con PostgreSQL
 
-Con PostgreSQL y pgvector instalados y las migraciones aplicadas, ejecuta desde la raiz del repositorio:
+Requisitos: SDK .NET 10, herramientas `dotnet ef`, PostgreSQL con pgvector instalado y una base `atendia` accesible. Desde PowerShell, en la raíz del repositorio:
 
 ```powershell
 .\scripts\Configure-LocalDatabase.ps1
+$env:ASPNETCORE_ENVIRONMENT = "Development"
+dotnet ef database update --project backend/src/Atendia.Api
 dotnet run --project backend/src/Atendia.Api --launch-profile https
 ```
 
@@ -42,62 +44,94 @@ Si PowerShell bloquea scripts, permite su ejecucion solo durante esa terminal co
 
 Abre `https://localhost:7028/admin.html`. En Development, la API sirve el admin y el widget desde el mismo origen. Para servir el admin por separado, configura la meta etiqueta `atendia-api-url` con el origen de la API.
 
-Sin `ChatProvider:ApiKey`, el chat devuelve un aviso de proveedor no configurado y no genera embeddings; permite comprobar persistencia, pero no valida IA ni busqueda vectorial real. Configura la clave del proveedor mediante secretos locales, nunca en archivos versionados.
+Con proveedores externos, sin `ChatProvider:ApiKey` el chat devuelve un aviso de proveedor no configurado y no genera embeddings. Configura la clave del proveedor mediante secretos locales, nunca en archivos versionados. El perfil local de Ollama no requiere esa clave.
 
-### Verificacion local (2026-10-19)
+### IA local con Ollama
+
+Instala Ollama para Windows desde su sitio oficial o con `winget install --id Ollama.Ollama --exact --scope user`. Luego descarga los modelos:
+
+```powershell
+ollama pull qwen2.5:3b
+ollama pull qwen3-embedding:4b
+dotnet run --project backend/src/Atendia.Api --launch-profile ollama
+```
+
+Ollama debe estar activo en `http://localhost:11434`. El perfil `ollama` usa su API compatible con OpenAI, sin enviar una API key: chat con Qwen2.5 3B y embeddings con Qwen3 Embedding 4B, solicitando 1536 dimensiones para conservar el esquema existente. Los modelos se ejecutan localmente, sin cobro por llamada; consumen RAM, CPU/GPU, disco y energia. Las descargas iniciales requieren internet.
+
+Abre el mismo admin en `https://localhost:7028/admin.html`. Las FAQ creadas antes de activar embeddings deben volver a guardarse desde el admin para generarlos. Si cambias de modelo de embeddings, regenera todos los vectores de la base afectada, aunque tengan la misma dimension; no mezcles espacios vectoriales de modelos diferentes.
+
+El perfil `https` conserva la configuracion del proveedor externo. No ejecutes ambos perfiles a la vez, porque usan los mismos puertos. La confianza del certificado local sigue siendo necesaria en el navegador.
+
+Validado localmente con 31,5 GB de RAM y gráfica Intel integrada: embedding de 1536 dimensiones y respuesta RAG con un dato exclusivo de una FAQ persistida en PostgreSQL. La consulta RAG de prueba tardó unos 5 segundos; es una medida puntual, no una garantía de latencia ni de calidad. Qwen3 4B también se descargó durante la evaluación, pero no es el modelo de chat seleccionado.
+
+### Verificación local (2026-10-19)
 
 - PostgreSQL 18 y pgvector 0.8.7 instalados; las siete migraciones fueron aplicadas.
 - Flujo HTTP validado contra PostgreSQL: registro/login/logout, sesion, bot/configuracion, CRUD de FAQ, chat, historial, leads, handoff, resolucion y reapertura.
 - FAQ persistidas disponibles tras reiniciar la API; se corrigio el listado administrativo que devolvia vacio al buscar sin texto.
 - Un segundo tenant no pudo consultar configuracion, FAQ, mensajes ni leads del primero (HTTP 404).
-- Suite automatizada: 13 pruebas pasando. Se conservaron dos tenants identificados como pruebas locales; las cookies temporales fueron eliminadas.
-- Pendiente: respuestas y embeddings con proveedor real, evaluacion de RAG y prueba visual del flujo completo. El certificado HTTPS local sigue requiriendo confianza en el navegador.
+- Suite automatizada: 17 pruebas pasando, incluidas compatibilidad de Ollama sin API key, dimensiones de embeddings y regresión del proveedor externo sin credenciales. Estas pruebas son unitarias; las verificaciones HTTP contra PostgreSQL y Ollama se ejecutaron por separado.
+- Embedding e historial de la prueba Ollama persistidos; el estado `HUMAN_HANDOFF` evitó nuevas llamadas al modelo.
+- Se conservaron tenants identificados como pruebas locales y de Ollama; las cookies temporales fueron eliminadas. No se guardaron credenciales en el repositorio.
+- Pendiente: evaluación amplia de RAG, prueba con proveedor externo configurado y prueba visual del flujo completo. El certificado HTTPS local sigue requiriendo confianza en el navegador.
+
+Para ejecutar las comprobaciones automatizadas:
+
+```powershell
+dotnet build backend/Atendia.slnx
+dotnet test backend/tests/Atendia.Tests/Atendia.Tests.csproj
+dotnet list backend/src/Atendia.Api/Atendia.Api.csproj package --vulnerable --include-transitive
+```
 
 ## Stack actual
 
-- Backend: ASP.NET Core
-- Frontend administrativo: pendiente; widget actual en JavaScript autocontenido
+- Backend: ASP.NET Core sobre .NET 10
+- Frontend administrativo: HTML/JavaScript, prototipo funcional servido por la API solo en Development
 - Database: PostgreSQL + pgvector
 - ORM: EF Core + Npgsql
 - AI abstraction: IChatModel
-- LLM provider inicial: proveedor externo
+- IA local validada: Ollama, Qwen2.5 3B y Qwen3 Embedding 4B
+- Proveedor externo integrado: OpenRouter, pendiente de prueba con credenciales reales
 - Widget: JavaScript con Shadow DOM
 
 ## Estado funcional por capa
 
-### ✅ Completado
+### Completado
 
 - Esqueleto de la solución y proyectos del backend.
 - Modelos principales de dominio: tenant, bot, knowledge, conversations, usage.
-- Servicio de chat con abstracción sobre proveedor externo.
-- Configuración inicial de acceso a PostgreSQL.
-- Generación de migración inicial de EF Core.
+- Servicio de chat con abstracción de proveedor y compatibilidad con Ollama local y API externa.
+- Configuración de PostgreSQL en secretos locales de desarrollo, fuera del repositorio.
+- Siete migraciones de EF Core aplicadas al entorno local.
 - Validación de compilación del backend.
 - Persistencia EF de knowledge, conversaciones, mensajes y usage.
 - Registro/login con usuarios asociados a tenant.
 - Widget JavaScript instalable mediante `BotKey`.
-- Once pruebas automatizadas pasando.
+- Diecisiete pruebas automatizadas pasando.
 - Embeddings persistidos con pgvector y búsqueda semántica con filtro tenant/bot.
 - Políticas `AdminOnly` y `KnowledgeRead`, además de validación tenant-scoped de bots.
 - Auditoría persistente de autenticación y cambios sensibles.
 - Configuración persistente del bot y CRUD de FAQ con regeneración de embeddings.
 - Captura y consulta de leads por `BotKey`.
 - Estado `HUMAN_HANDOFF`, revisión de conversaciones y bloqueo del modelo después del escalamiento.
+- Resolución de conversaciones y reapertura en `AI_HANDLING` al recibir un nuevo mensaje.
+- Recuperación de sesión, selección de bot, edición/eliminación de FAQ y consulta de mensajes desde el admin.
+- Prueba RAG local con embeddings de 1536 dimensiones y recuperación de un dato exclusivo de la FAQ.
 
-### 🔄 En progreso
+### Validación y operación pendientes
 
-- Frontend administrativo para consumir configuración, FAQ, conversaciones y leads (prototipo funcional en curso).
-- Configuración de entorno para dev/prod, CORS y cookies de sesión en navegador.
-- Observabilidad y cálculo de costo real por modelo.
-- Notificaciones para nuevos handoffs y revisión manual operativa.
-- Validación del flujo end-to-end con PostgreSQL real y pgvector.
+- Prueba visual end-to-end de admin y widget, incluida confianza del certificado HTTPS local y sesión en navegador.
+- Evaluación de respuestas, recuperación semántica, preguntas desconocidas, guardrails y resistencia a prompt injection.
+- Regeneración de embeddings de las FAQ antiguas que se crearon sin proveedor configurado.
+- Notificación de handoff y respuesta humana al cliente; cambiar el estado todavía no constituye un canal de atención humano completo.
+- Costos reales por modelo, límites de consumo y observabilidad mínima.
+- Configuración de producción, despliegue reproducible y piloto con un cliente real.
 
-### ⏳ Pendiente
+### Fuera del núcleo actual
 
-- Modelo local en VPS.
+- Modelo local en VPS; la prueba actual se ejecuta en el equipo de desarrollo.
 - Dashboard de métricas y billing.
-- Piloto real con PostgreSQL, proveedor de embeddings y proveedor LLM configurados.
-- Resolver la vulnerabilidad reportada por NuGet en `Npgsql` antes del piloto comercial.
+- Integraciones con WhatsApp y CRM.
 
 ## Roadmap principal
 
@@ -109,4 +143,4 @@ Consulta la documentación en:
 
 ## Nota de ejecución
 
-La compilación del backend fue verificada con `dotnet test` y las 11 pruebas automatizadas pasan. Las migraciones incluyen `KnowledgeEmbeddings`, `AuditEvents` y `LeadStatus`. El proyecto ya tiene un prototipo de admin y un conjunto de pruebas HTTP para validar el flujo del MVP. La vulnerabilidad reportada por NuGet en `Npgsql` y la validación con PostgreSQL real siguen siendo los puntos críticos antes del piloto.
+La compilación de la API, las 17 pruebas y el recorrido HTTP con PostgreSQL/Ollama fueron verificados localmente. El perfil `ollama` permite continuar las pruebas sin pago por llamada ni API key, pero no implica calidad o capacidad productiva garantizadas. La aplicación requiere que PostgreSQL y Ollama estén activos. Los documentos de roadmap conservan planificación histórica; este README resume el estado comprobado al 2026-10-19.
