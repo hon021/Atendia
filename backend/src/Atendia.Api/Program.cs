@@ -97,11 +97,33 @@ builder.Services.AddScoped<IUsageRepository, EfUsageRepository>();
 builder.Services.AddScoped<IAuditRepository, EfAuditRepository>();
 builder.Services.AddHttpClient<IChatModel, ExternalChatModel>(client =>
     client.Timeout = TimeSpan.FromMinutes(5));
+var handoffEmailSettings = builder.Configuration.GetSection("HandoffEmail").Get<HandoffEmailSettings>() ?? new HandoffEmailSettings();
+builder.Services.AddSingleton(handoffEmailSettings);
+builder.Services.AddScoped<IHandoffEmailSender, SmtpHandoffEmailSender>();
 builder.Services.AddScoped<ChatService>();
 builder.Services.AddScoped<ITenantService, TenantService>();
 builder.Services.AddScoped<IBotService, BotService>();
 
 var app = builder.Build();
+
+app.Use(async (context, next) =>
+{
+    try
+    {
+        await next();
+    }
+    catch (AiProviderUnavailableException exception) when (!context.Response.HasStarted)
+    {
+        app.Logger.LogWarning(exception, "AI provider unavailable while handling {Path}", context.Request.Path);
+        context.Response.Clear();
+        context.Response.StatusCode = StatusCodes.Status503ServiceUnavailable;
+        await context.Response.WriteAsJsonAsync(new
+        {
+            title = "Servicio de IA no disponible",
+            message = "No se pudo completar la operación con el proveedor de IA. Inténtalo de nuevo más tarde."
+        });
+    }
+});
 
 if (app.Environment.IsDevelopment())
 {
@@ -238,6 +260,10 @@ app.MapGet("/api/auth/session", (ClaimsPrincipal user) =>
 app.MapPost("/api/chat", async (
     ChatRequest request,
     IBotRepository botRepository,
+    IConversationRepository conversationRepository,
+    IBotConfigurationRepository configurationRepository,
+    IAuditRepository auditRepository,
+    IHandoffEmailSender handoffEmailSender,
     ChatService service,
     CancellationToken cancellationToken) =>
 {
@@ -254,8 +280,86 @@ app.MapPost("/api/chat", async (
 
     request.TenantId = bot.TenantId;
     request.BotId = bot.Id;
+    var previousStatus = string.IsNullOrWhiteSpace(request.ConversationId)
+        ? null
+        : conversationRepository.GetById(request.ConversationId, bot.TenantId, bot.Id)?.Status;
     var response = await service.SendAsync(request, cancellationToken);
+
+    if (string.Equals(response.Status, "HUMAN_HANDOFF", StringComparison.Ordinal) &&
+        !string.Equals(previousStatus, "HUMAN_HANDOFF", StringComparison.Ordinal))
+    {
+        auditRepository.Add(new AuditEvent
+        {
+            TenantId = bot.TenantId,
+            Action = "conversation.auto_handoff",
+            ResourceType = "conversation",
+            ResourceId = response.ConversationId,
+            Succeeded = true
+        });
+
+        var configuration = configurationRepository.GetByBotId(bot.TenantId, bot.Id);
+        if (string.IsNullOrWhiteSpace(configuration?.ContactEmail))
+        {
+            app.Logger.LogWarning(
+                "Handoff email notification skipped because no contact email is configured for bot {BotId}",
+                bot.Id);
+        }
+        else if (!handoffEmailSender.IsConfigured)
+        {
+            app.Logger.LogWarning(
+                "Handoff email notification skipped because SMTP is not configured for conversation {ConversationId}",
+                response.ConversationId);
+        }
+        else
+        {
+            try
+            {
+                await handoffEmailSender.SendAsync(
+                    configuration.ContactEmail,
+                    configuration.BusinessName ?? bot.Name,
+                    bot.Name,
+                    response.ConversationId!,
+                    request.Message,
+                    cancellationToken);
+            }
+            catch (HandoffEmailDeliveryException exception)
+            {
+                app.Logger.LogError(
+                    exception,
+                    "Handoff email notification failed for tenant {TenantId}, bot {BotId}, conversation {ConversationId}",
+                    bot.TenantId,
+                    bot.Id,
+                    response.ConversationId);
+            }
+        }
+    }
+
     return Results.Ok(response);
+});
+
+app.MapGet("/api/chat/{conversationId}/messages", (
+    string conversationId,
+    HttpRequest httpRequest,
+    IBotRepository botRepository,
+    IConversationRepository conversationRepository,
+    IMessageRepository messageRepository) =>
+{
+    var botKey = httpRequest.Headers["X-Atendia-Bot-Key"].ToString();
+    var bot = string.IsNullOrWhiteSpace(botKey) ? null : botRepository.GetByPublicKey(botKey);
+    if (bot is null)
+    {
+        return Results.Unauthorized();
+    }
+
+    var conversation = conversationRepository.GetById(conversationId, bot.TenantId, bot.Id);
+    if (conversation is null)
+    {
+        return Results.NotFound();
+    }
+
+    var agentMessages = messageRepository.GetByConversationId(conversationId, bot.TenantId)
+        .Where(message => message.Sender == "agent");
+    return Results.Ok(new { conversation.Status, Messages = agentMessages });
 });
 
 app.MapPost("/api/leads", (LeadCreateRequest request, IBotRepository botRepository, ILeadRepository leadRepository, IAuditRepository auditRepository) =>
@@ -549,6 +653,64 @@ app.MapGet("/api/conversations/{botId}/{conversationId}/messages", (string botId
     return Results.Ok(messageRepository.GetByConversationId(conversationId, tenantId));
 }).RequireAuthorization("KnowledgeRead");
 
+app.MapPost("/api/conversations/{conversationId}/messages", (
+    string conversationId,
+    AgentReplyRequest request,
+    ClaimsPrincipal user,
+    IBotRepository botRepository,
+    IConversationRepository conversationRepository,
+    IMessageRepository messageRepository,
+    IAuditRepository auditRepository) =>
+{
+    var tenantId = user.FindFirstValue("tenant_id");
+    if (string.IsNullOrWhiteSpace(tenantId))
+    {
+        return Results.Forbid();
+    }
+
+    if (string.IsNullOrWhiteSpace(request.BotId) || string.IsNullOrWhiteSpace(request.Content) || request.Content.Length > 4000)
+    {
+        return Results.BadRequest(new { message = "BotId y Content son obligatorios; Content admite hasta 4000 caracteres." });
+    }
+
+    if (botRepository.GetById(request.BotId, tenantId) is null)
+    {
+        return Results.NotFound(new { message = "El bot no existe para el tenant autenticado." });
+    }
+
+    var conversation = conversationRepository.GetById(conversationId, tenantId, request.BotId);
+    if (conversation is null)
+    {
+        return Results.NotFound(new { message = "La conversación no existe para el tenant autenticado." });
+    }
+
+    if (!string.Equals(conversation.Status, "HUMAN_HANDOFF", StringComparison.Ordinal))
+    {
+        return Results.Conflict(new { message = "La conversación debe estar escalada para responder como agente." });
+    }
+
+    var message = new Message
+    {
+        Id = Guid.NewGuid().ToString("N"),
+        ConversationId = conversationId,
+        TenantId = tenantId,
+        Sender = "agent",
+        Content = request.Content.Trim()
+    };
+    messageRepository.Add(message);
+    auditRepository.Add(new AuditEvent
+    {
+        TenantId = tenantId,
+        UserId = user.FindFirstValue(ClaimTypes.NameIdentifier),
+        Action = "conversation.agent_reply",
+        ResourceType = "conversation",
+        ResourceId = conversationId,
+        Succeeded = true
+    });
+
+    return Results.Ok(message);
+}).RequireAuthorization("KnowledgeRead");
+
 app.MapGet("/api/leads/{botId}", (string botId, ClaimsPrincipal user, IBotRepository botRepository, ILeadRepository leadRepository) =>
 {
     var tenantId = user.FindFirstValue("tenant_id");
@@ -632,7 +794,34 @@ app.MapDelete("/api/knowledge/{botId}/{knowledgeId}", async (string botId, strin
     return Results.NoContent();
 }).RequireAuthorization("AdminOnly");
 
-app.MapGet("/health", () => Results.Ok(new { status = "ok" }));
+app.MapGet("/health", () => Results.Ok(new { status = "live" }));
+app.MapGet("/health/ready", async (
+    IServiceScopeFactory scopeFactory,
+    IConfiguration configuration,
+    CancellationToken cancellationToken) =>
+{
+    if (string.IsNullOrWhiteSpace(configuration.GetConnectionString("AtendiaDb")))
+    {
+        return Results.Json(new { status = "not_ready", dependency = "database" }, statusCode: StatusCodes.Status503ServiceUnavailable);
+    }
+
+    try
+    {
+        await using var scope = scopeFactory.CreateAsyncScope();
+        var dbContext = scope.ServiceProvider.GetRequiredService<AtendiaDbContext>();
+        if (!await dbContext.Database.CanConnectAsync(cancellationToken))
+        {
+            return Results.Json(new { status = "not_ready", dependency = "database" }, statusCode: StatusCodes.Status503ServiceUnavailable);
+        }
+    }
+    catch (System.Data.Common.DbException exception)
+    {
+        app.Logger.LogWarning(exception, "Database readiness check failed");
+        return Results.Json(new { status = "not_ready", dependency = "database" }, statusCode: StatusCodes.Status503ServiceUnavailable);
+    }
+
+    return Results.Ok(new { status = "ready" });
+});
 
 app.Run();
 
@@ -642,5 +831,6 @@ public sealed record BotConfigurationRequest(string? BusinessName, string? Secto
 public sealed record KnowledgeUpdateRequest(string Title, string Content, string? SourceType = "faq");
 public sealed record LeadCreateRequest(string BotKey, string Name, string Email, string? Phone = null, string? Interest = null);
 public sealed record HandoffRequest(string BotId);
+public sealed record AgentReplyRequest(string BotId, string Content);
 public sealed record RegisterRequest(string Name, string Email, string Password);
 public sealed record LoginRequest(string Email, string Password);

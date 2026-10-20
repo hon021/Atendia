@@ -10,16 +10,15 @@ A la fecha, la base de la solución ya fue levantada con una arquitectura clara:
 - PostgreSQL + EF Core configurado y migración inicial creada.
 - Persistencia EF de conocimiento, conversaciones, mensajes y uso.
 - Identity básico asociado a tenant y credencial pública por bot.
-- Widget JavaScript funcional para chat público.
+- Widget JavaScript funcional para chat público, con consulta de respuestas de agente durante un handoff.
 
-Sin embargo, el proyecto aún está en una etapa de validación técnica, no de producción completa:
+La validación local de octubre de 2026 también confirmó el recorrido visual del admin/widget, handoff automático cuando no hay conocimiento recuperado, respuesta manual del agente desde el admin y pruebas automatizadas para errores del proveedor. Esto sigue siendo validación técnica, no evidencia de producción:
 
-- la autorización por recurso y los roles operativos aún deben cerrarse,
-- el RAG debe validarse con embeddings persistidos y aislamiento por tenant,
-- la capa de seguridad y tenant enforcement requiere reforzarse,
-- el onboarding administrativo y la captura de leads aún no existen,
-- el handoff humano todavía no está operativo,
-- y la operación comercial aún debe medirse con datos reales del producto.
+- guardrails de prompt injection requieren evaluación con preguntas y modelos reales; las instrucciones de sistema no son una garantía de seguridad,
+- los umbrales de relevancia/abstención deben calibrarse con FAQs aprobadas del cliente,
+- las alertas SMTP de handoff ya están integradas, pero falta configurar y comprobar la entrega en el entorno piloto y definir la operación del equipo del cliente,
+- costos, calidad de resolución y volumen deben medirse en un piloto real,
+- y falta preparar un despliegue reproducible y validarlo en staging.
 
 Esto es consistente con la estrategia original: arrancar con proveedor externo, medir costo real, y solo evaluar un modelo local si el volumen lo justifica.
 

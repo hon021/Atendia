@@ -8,6 +8,14 @@ public interface IChatModel
     Task<ChatResponse> GenerateAsync(ChatRequest request, ChatContext context, CancellationToken cancellationToken);
 }
 
+public sealed class AiProviderUnavailableException : Exception
+{
+    public AiProviderUnavailableException(string message, Exception? innerException = null)
+        : base(message, innerException)
+    {
+    }
+}
+
 public sealed class ChatContext
 {
     public string TenantId { get; init; } = string.Empty;
@@ -19,6 +27,9 @@ public sealed class ChatContext
 
 public sealed class ChatService
 {
+    public const string HandoffMarker = "[[HANDOFF_REQUIRED]]";
+    public const string HandoffMessage = "No encontré información suficiente para responder con seguridad. Ya solicitamos ayuda de una persona del equipo.";
+
     private readonly IChatModel _chatModel;
     private readonly IKnowledgeService _knowledgeService;
     private readonly IBotConfigurationRepository _botConfigurationRepository;
@@ -77,7 +88,7 @@ public sealed class ChatService
 
         if (string.Equals(conversation.Status, "HUMAN_HANDOFF", StringComparison.Ordinal))
         {
-            return new ChatResponse
+            var handoffResponse = new ChatResponse
             {
                 TenantId = request.TenantId,
                 BotId = request.BotId,
@@ -85,12 +96,26 @@ public sealed class ChatService
                 Content = "Tu conversación está siendo atendida por una persona. Te responderemos pronto.",
                 Status = "HUMAN_HANDOFF"
             };
+            SaveAssistantMessage(conversation.Id, request.TenantId, handoffResponse.Content);
+            return handoffResponse;
         }
 
         var context = await BuildContextAsync(request, cancellationToken);
+        if (context.Knowledge.Count == 0)
+        {
+            return MoveToHumanHandoff(conversation, request);
+        }
+
         var stopwatch = Stopwatch.StartNew();
         var response = await _chatModel.GenerateAsync(request, context, cancellationToken);
         stopwatch.Stop();
+
+        if (response.Content.Contains(HandoffMarker, StringComparison.Ordinal))
+        {
+            _conversationRepository.SetStatus(conversation.Id, request.TenantId, request.BotId, "HUMAN_HANDOFF");
+            conversation.Status = "HUMAN_HANDOFF";
+            response.Content = HandoffMessage;
+        }
 
         if (!string.Equals(response.TenantId, request.TenantId, StringComparison.Ordinal))
         {
@@ -108,14 +133,7 @@ public sealed class ChatService
         }
         response.Status = conversation.Status;
 
-        _messageRepository.Add(new Message
-        {
-            Id = Guid.NewGuid().ToString("N"),
-            ConversationId = conversation.Id,
-            TenantId = request.TenantId,
-            Sender = "assistant",
-            Content = response.Content
-        });
+        SaveAssistantMessage(conversation.Id, request.TenantId, response.Content);
 
         _usageRepository.Add(new UsageRecord
         {
@@ -131,6 +149,34 @@ public sealed class ChatService
         });
 
         return response;
+    }
+
+    private ChatResponse MoveToHumanHandoff(Conversation conversation, ChatRequest request)
+    {
+        _conversationRepository.SetStatus(conversation.Id, request.TenantId, request.BotId, "HUMAN_HANDOFF");
+        conversation.Status = "HUMAN_HANDOFF";
+        SaveAssistantMessage(conversation.Id, request.TenantId, HandoffMessage);
+
+        return new ChatResponse
+        {
+            TenantId = request.TenantId,
+            BotId = request.BotId,
+            ConversationId = conversation.Id,
+            Content = HandoffMessage,
+            Status = "HUMAN_HANDOFF"
+        };
+    }
+
+    private void SaveAssistantMessage(string conversationId, string tenantId, string content)
+    {
+        _messageRepository.Add(new Message
+        {
+            Id = Guid.NewGuid().ToString("N"),
+            ConversationId = conversationId,
+            TenantId = tenantId,
+            Sender = "assistant",
+            Content = content
+        });
     }
 
     private Conversation GetOrCreateConversation(ChatRequest request)

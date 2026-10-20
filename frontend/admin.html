@@ -152,6 +152,7 @@
 
         <section class="panel hidden" id="opsPanel">
           <h2>Leads y conversaciones</h2>
+          <p class="muted">Handoffs pendientes: <strong id="handoffCount">0</strong></p>
           <div class="grid-2">
             <div>
               <h3>Leads</h3>
@@ -169,6 +170,11 @@
               <button id="handoffBtn" class="secondary" type="button">Escalar a humano</button>
               <button id="resolveBtn" class="ghost" type="button">Marcar resuelta</button>
             </div>
+            <form id="agentReplyForm" class="hidden">
+              <label>Responder al cliente<textarea name="content" maxlength="4000" required></textarea></label>
+              <button type="submit">Enviar respuesta</button>
+              <div id="agentReplyStatus" class="status"></div>
+            </form>
           </section>
         </section>
       </main>

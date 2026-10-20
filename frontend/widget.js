@@ -17,6 +17,10 @@
   const root = host.attachShadow({ mode: 'open' });
   let conversationId = null;
   let busy = false;
+  let handoffPolling = false;
+  let handoffPollTimer = null;
+  let pollErrorDisplayed = false;
+  const renderedAgentMessages = new Set();
 
   root.innerHTML = `
     <style>
@@ -31,6 +35,7 @@
       .message { max-width: 82%; padding: 10px 12px; border-radius: 14px; line-height: 1.4; white-space: pre-wrap; }
       .message.bot { align-self: flex-start; background: #f0e2d4; }
       .message.user { align-self: flex-end; background: #d95f39; color: #fff; }
+      .message.agent { align-self: flex-start; background: #e4eee7; }
       .message.error { align-self: center; background: #ffe5df; color: #8b2f1d; font-size: 13px; }
       .composer { display: flex; gap: 8px; padding: 12px; border-top: 1px solid #ead8c9; background: #fff; }
       .input { min-width: 0; flex: 1; padding: 11px 12px; border: 1px solid #d9c5b5; border-radius: 10px; color: #2f231d; font: inherit; }
@@ -76,6 +81,11 @@
       const data = await response.json();
       conversationId = data.conversationId || conversationId;
       addMessage(data.content || 'No recibimos una respuesta.', 'bot');
+      if (data.status === 'HUMAN_HANDOFF') {
+        startHandoffPolling();
+      } else {
+        stopHandoffPolling();
+      }
     } catch (error) {
       addMessage(error.message, 'error');
     } finally {
@@ -96,6 +106,54 @@
     input.disabled = value;
     send.disabled = value;
     send.textContent = value ? '…' : '↑';
+  }
+
+  function startHandoffPolling() {
+    if (!conversationId || handoffPolling) return;
+    handoffPolling = true;
+    pollHandoffMessages();
+  }
+
+  function stopHandoffPolling() {
+    handoffPolling = false;
+    if (handoffPollTimer) {
+      window.clearTimeout(handoffPollTimer);
+      handoffPollTimer = null;
+    }
+  }
+
+  async function pollHandoffMessages() {
+    if (!conversationId) return;
+
+    try {
+      const response = await fetch(`${apiUrl.replace(/\/$/, '')}/api/chat/${encodeURIComponent(conversationId)}/messages`, {
+        headers: { 'X-Atendia-Bot-Key': botKey }
+      });
+      if (!response.ok) throw new Error('No se pudo actualizar la conversación.');
+
+      const data = await response.json();
+      for (const message of data.messages || []) {
+        if (!renderedAgentMessages.has(message.id)) {
+          renderedAgentMessages.add(message.id);
+          addMessage(`Atención al cliente: ${message.content}`, 'agent');
+        }
+      }
+
+      if (data.status === 'RESOLVED') {
+        stopHandoffPolling();
+        addMessage('La atención humana ha finalizado. Si necesitas más ayuda, envía otro mensaje.', 'bot');
+      }
+      pollErrorDisplayed = false;
+    } catch (error) {
+      if (!pollErrorDisplayed) {
+        addMessage(error.message, 'error');
+        pollErrorDisplayed = true;
+      }
+    } finally {
+      if (handoffPolling) {
+        handoffPollTimer = window.setTimeout(pollHandoffMessages, 5000);
+      }
+    }
   }
 
   function escapeHtml(value) {

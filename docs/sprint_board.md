@@ -40,11 +40,13 @@ Completada a nivel backend; pendiente validación con PostgreSQL real.
 - [x] Proteger acceso inicial a knowledge y bot por tenant.
 - [x] Añadir políticas de roles `Admin` / `Operator` / `CustomerSupport`.
 - [x] Definir políticas simples de auditoría para eventos sensibles.
-- [ ] Añadir guardrails para información desconocida, prompt injection y secretos.
+- [x] Hacer handoff automático cuando no se recupera conocimiento o el modelo indica que no puede fundamentar la respuesta.
+- [x] Separar pregunta y fuentes no confiables de las instrucciones del sistema.
+- [ ] Evaluar prompt injection y calibrar la recuperación con el proveedor/modelo definitivo.
 
 ### Estado
 
-En progreso.
+Guardrails básicos y abstención implementados; hace falta evaluación con un conjunto de ataques realista. La política de prompt reduce el riesgo, pero no garantiza por sí sola resistencia a prompt injection.
 
 ---
 
@@ -56,8 +58,9 @@ En progreso.
 - [ ] Calcular costo estimado por conversación.
 - [ ] Configurar tarifas por proveedor/modelo para calcular costo real.
 - [ ] Agregar logs estructurados por tenant y bot.
-- [ ] Exponer métricas básicas para dashboard.
-- [ ] Añadir health checks y correlación de logs por conversación.
+- [x] Registrar fallos del proveedor y responder HTTP 503 con mensaje controlado.
+- [x] Añadir liveness `/health` y readiness de PostgreSQL `/health/ready`.
+- [ ] Exponer métricas básicas para dashboard y correlación de logs por conversación.
 
 ---
 
@@ -67,7 +70,7 @@ En progreso.
 
 - [x] Finalizar el widget embebible con `BotKey`.
 - [x] Crear configuración administrativa mínima del negocio y del bot vía API.
-- [x] Permitir cargar y gestionar FAQ vía API; falta conectar el frontend.
+- [x] Permitir cargar y gestionar FAQ desde el admin.
 - [x] Crear página de prueba para instalación del widget.
 
 ### Estado
@@ -83,13 +86,17 @@ Backend listo; frontend administrativo pendiente.
 - [ ] Preparar un caso de uso concreto para un cliente piloto.
 - [ ] Crear un tenant demo con FAQ útil.
 - [x] Implementar el flujo backend de conversation -> answer -> lead -> handoff.
-- [ ] Probar el flujo de conversación desconocida -> handoff manual.
+- [x] Escalar automáticamente consultas sin respaldo y actualizar la bandeja de handoff.
+- [x] Permitir que un agente responda en el admin y que el widget reciba la respuesta.
+- [x] Integrar alertas SMTP al email de contacto del bot.
+- [ ] Configurar y probar entrega con SMTP del entorno piloto.
+- [ ] Evaluar el flujo con preguntas representativas de un cliente piloto.
 - [ ] Evaluar la tasa de resolución, escalamiento y costo.
 - [ ] Rediseñar la configuración mínima del bot según resultados reales.
 
 ### Estado
 
-Pendiente.
+El flujo local de admin/widget fue validado; faltan cliente y contenido piloto, validar la entrega SMTP real y medir resultados de negocio.
 
 ---
 

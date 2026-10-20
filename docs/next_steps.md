@@ -4,7 +4,7 @@
 
 Definir la prioridad inmediata para convertir el proyecto de una base técnica funcional en un MVP operativo con persistencia real, seguridad y métricas útiles.
 
-> Estado actualizado: el backend ya está funcional y validado por tests. La mayor brecha actual está en la operatividad del admin, la validación con PostgreSQL real y la preparación del piloto con un cliente real.
+> Estado actualizado (2026-10-20): backend y admin/widget validados localmente. Hay handoff automático sin conocimiento recuperado, respuesta humana desde el admin, tratamiento controlado de errores del proveedor y envío de alertas SMTP configurable. La brecha principal ahora es evaluar calidad con datos reales y preparar un piloto/despliegue.
 
 ---
 
@@ -22,9 +22,10 @@ Definir la prioridad inmediata para convertir el proyecto de una base técnica f
 
 ### Pendiente crítico
 
-- [ ] Resolver la vulnerabilidad reportada en `Npgsql`.
-- [ ] Validar flujo end-to-end con PostgreSQL real.
-- [ ] Completar el admin operativo para FAQ, conversaciones y leads.
+- [ ] Evaluar recuperación, abstención y guardrails con preguntas aprobadas de un negocio piloto.
+- [x] Integrar notificaciones SMTP para nuevos handoffs.
+- [ ] Configurar credenciales SMTP fuera del repositorio y validar entrega real.
+- [ ] Validar el handoff/respuesta agente-widget y readiness contra un entorno de staging.
 - [ ] Ejecutar piloto real con un caso de negocio concreto.
 
 ---
@@ -77,8 +78,10 @@ El objetivo de esta fase es que el flujo completo use datos reales y pueda proba
 
 ### 6. Guardrails
 
-- Reforzar prompt y lógica de seguridad.
-- Definir cuando el bot debe responder, cuándo pedir más información y cuándo escalar a humano.
+- [x] Separar pregunta y fuentes recuperadas de las instrucciones del sistema, tratándolas como datos no confiables.
+- [x] Pedir al modelo una marca de handoff cuando no pueda fundamentar una respuesta; reemplazarla por un mensaje seguro.
+- [x] Escalar directamente a humano cuando no se recupere conocimiento.
+- [ ] Evaluar prompt injection y calibrar falsos positivos/negativos con el proveedor/modelo definitivo.
 
 ---
 
@@ -92,8 +95,9 @@ El objetivo de esta fase es que el flujo completo use datos reales y pueda proba
 
 ### 8. Observabilidad
 
-- Logs estructurados.
-- Health checks por servicio.
+- [x] Registrar fallos del proveedor con log estructurado y devolver HTTP 503 con mensaje controlado.
+- [x] Separar liveness (`/health`) y readiness de PostgreSQL (`/health/ready`).
+- [ ] Añadir métricas por tenant, bot y conversación; definir alertas para fallos y consumo.
 - Trazabilidad de conversaciones y errores.
 
 ### 9. Dashboard básico
@@ -120,7 +124,10 @@ El objetivo de esta fase es que el flujo completo use datos reales y pueda proba
 - [x] Definir flujo de escalamiento manual.
 - [x] Implementar estado `HUMAN_HANDOFF`.
 - [x] Crear revisión manual mediante endpoints de conversaciones y captura de leads.
-- [ ] Añadir notificación a agentes por handoff nuevo.
+- [x] Mostrar handoffs pendientes en el admin, actualizado periódicamente.
+- [x] Permitir respuesta de agente desde el admin y mostrarla en el widget.
+- [x] Integrar notificación SMTP al email de contacto del bot.
+- [ ] Verificar entrega con el servidor SMTP del entorno piloto.
 
 ### Criterio de salida del MVP
 
@@ -147,11 +154,12 @@ Una PYME debe poder registrarse, configurar su bot, cargar FAQ, probarlo, public
 
 ## Orden recomendado de trabajo
 
-1. Configurar y aplicar migraciones en PostgreSQL con pgvector.
-2. Construir el frontend administrativo sobre los endpoints existentes.
-3. Añadir notificaciones y estados operativos para handoff.
-4. Costos reales, observabilidad y piloto.
-5. Evaluación del modelo local.
+1. Elegir cliente piloto/vertical y obtener FAQs y preguntas representativas aprobadas.
+2. Ejecutar evaluación de RAG, guardrails, abstención y handoff con el proveedor/modelo elegido.
+3. Configurar SMTP en el entorno piloto y comprobar alertas de handoff y respuesta del agente.
+4. Preparar despliegue/staging, métricas de costo, errores y disponibilidad.
+5. Ejecutar piloto acotado y decidir mejoras usando sus resultados.
+6. Evaluar un modelo local solo con volumen y costos observados.
 
 ---
 

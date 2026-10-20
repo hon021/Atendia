@@ -41,21 +41,36 @@ public sealed class ExternalEmbeddingService : IEmbeddingService
         }
         request.Content = new StringContent(JsonSerializer.Serialize(payload), Encoding.UTF8, "application/json");
 
-        using var response = await _httpClient.SendAsync(request, cancellationToken);
-        response.EnsureSuccessStatusCode();
-        using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync(cancellationToken));
-
-        var embedding = document.RootElement
-            .GetProperty("data")[0]
-            .GetProperty("embedding")
-            .EnumerateArray()
-            .Select(value => value.GetSingle())
-            .ToArray();
-        if (_settings.EmbeddingDimensions is int expectedDimensions && embedding.Length != expectedDimensions)
+        try
         {
-            throw new InvalidOperationException($"El proveedor devolvió {embedding.Length} dimensiones; se esperaban {expectedDimensions}.");
-        }
+            using var response = await _httpClient.SendAsync(request, cancellationToken);
+            response.EnsureSuccessStatusCode();
+            using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync(cancellationToken));
 
-        return embedding;
+            var embedding = document.RootElement
+                .GetProperty("data")[0]
+                .GetProperty("embedding")
+                .EnumerateArray()
+                .Select(value => value.GetSingle())
+                .ToArray();
+            if (_settings.EmbeddingDimensions is int expectedDimensions && embedding.Length != expectedDimensions)
+            {
+                throw new InvalidOperationException($"El proveedor devolvió {embedding.Length} dimensiones; se esperaban {expectedDimensions}.");
+            }
+
+            return embedding;
+        }
+        catch (HttpRequestException exception)
+        {
+            throw new AiProviderUnavailableException("El proveedor de IA no pudo generar el embedding.", exception);
+        }
+        catch (TaskCanceledException exception) when (!cancellationToken.IsCancellationRequested)
+        {
+            throw new AiProviderUnavailableException("El proveedor de IA agotó el tiempo de espera al generar el embedding.", exception);
+        }
+        catch (JsonException exception)
+        {
+            throw new AiProviderUnavailableException("El proveedor de IA devolvió un embedding no válido.", exception);
+        }
     }
 }

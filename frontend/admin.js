@@ -36,8 +36,11 @@ const ui = {
   conversationDetail: document.getElementById('conversationDetail'),
   conversationTitle: document.getElementById('conversationTitle'),
   conversationMessages: document.getElementById('conversationMessages'),
+  handoffCount: document.getElementById('handoffCount'),
   handoffBtn: document.getElementById('handoffBtn'),
-  resolveBtn: document.getElementById('resolveBtn')
+  resolveBtn: document.getElementById('resolveBtn'),
+  agentReplyForm: document.getElementById('agentReplyForm'),
+  agentReplyStatus: document.getElementById('agentReplyStatus')
 };
 
 function setStatus(element, message, isError = false) {
@@ -65,7 +68,18 @@ async function apiFetch(path, options = {}) {
   }
 
   const text = await response.text();
-  const body = text ? JSON.parse(text) : null;
+  let body = null;
+  if (text) {
+    try {
+      body = JSON.parse(text);
+    } catch {
+      if (!response.ok) {
+        throw new Error(`La solicitud falló (HTTP ${response.status}).`);
+      }
+
+      throw new Error('El servidor devolvió una respuesta no válida.');
+    }
+  }
 
   if (!response.ok) {
     const detail = body?.message || body?.title || 'La solicitud falló.';
@@ -294,20 +308,22 @@ async function refreshOps() {
   try {
     const conversations = await apiFetch(`/api/conversations/${state.botId}`);
     state.conversations = Array.isArray(conversations) ? conversations : [];
+    ui.handoffCount.textContent = String(state.conversations.filter(item => item.status === 'HUMAN_HANDOFF').length);
     ui.conversationsList.innerHTML = state.conversations.length
       ? state.conversations.map(item => `
           <div class="item">
             <strong>${escapeHtml(item.id)}</strong><br>
-            <span class="muted">Estado: ${escapeHtml(item.status || 'OPEN')}</span>
+            <span class="muted">Estado: ${escapeHtml(item.status || 'OPEN')}${item.status === 'HUMAN_HANDOFF' ? ' · Requiere atención' : ''}</span>
             <div class="actions">
               <button class="ghost" type="button" data-action="view" data-id="${escapeHtml(item.id)}">Ver mensajes</button>
-              ${item.status === 'RESOLVED' ? '' : `<button class="secondary" type="button" data-action="handoff" data-id="${escapeHtml(item.id)}">Escalar</button>`}
+              ${item.status === 'RESOLVED' || item.status === 'HUMAN_HANDOFF' ? '' : `<button class="secondary" type="button" data-action="handoff" data-id="${escapeHtml(item.id)}">Escalar</button>`}
             </div>
           </div>
         `).join('')
       : '<div class="item">No hay conversaciones todavía.</div>';
   } catch (error) {
     ui.conversationsList.innerHTML = '<div class="item">No se pudieron cargar las conversaciones.</div>';
+    ui.handoffCount.textContent = '—';
   }
 }
 
@@ -331,6 +347,7 @@ async function refreshAll() {
       ui.knowledgeList.innerHTML = '';
       ui.conversationsList.innerHTML = '';
       ui.leadsList.innerHTML = '';
+      ui.handoffCount.textContent = '0';
       ui.conversationDetail.classList.add('hidden');
       ui.widgetSnippet.textContent = '';
       return;
@@ -385,6 +402,7 @@ async function openConversation(conversationId) {
   if (!state.botId) return;
 
   try {
+    await refreshOps();
     const messages = await apiFetch(`/api/conversations/${state.botId}/${conversationId}/messages`);
     const conversation = state.conversations.find(item => item.id === conversationId);
     state.activeConversationId = conversationId;
@@ -397,9 +415,31 @@ async function openConversation(conversationId) {
     `).join('') || '<div class="item">Sin mensajes.</div>';
     ui.handoffBtn.classList.toggle('hidden', conversation?.status === 'HUMAN_HANDOFF' || conversation?.status === 'RESOLVED');
     ui.resolveBtn.classList.toggle('hidden', conversation?.status === 'RESOLVED');
+    ui.agentReplyForm.classList.toggle('hidden', conversation?.status !== 'HUMAN_HANDOFF');
+    setStatus(ui.agentReplyStatus, '');
     ui.conversationDetail.classList.remove('hidden');
   } catch (error) {
     setStatus(ui.botStatus, error.message, true);
+  }
+}
+
+async function sendAgentReply(event) {
+  event.preventDefault();
+  const content = String(new FormData(ui.agentReplyForm).get('content') || '').trim();
+  if (!state.activeConversationId || !state.botId || !content) return;
+
+  try {
+    setStatus(ui.agentReplyStatus, '');
+    await apiFetch(`/api/conversations/${state.activeConversationId}/messages`, {
+      method: 'POST',
+      body: JSON.stringify({ botId: state.botId, content })
+    });
+    ui.agentReplyForm.reset();
+    await refreshOps();
+    await openConversation(state.activeConversationId);
+    setStatus(ui.agentReplyStatus, 'Respuesta enviada al cliente.');
+  } catch (error) {
+    setStatus(ui.agentReplyStatus, error.message, true);
   }
 }
 
@@ -476,9 +516,13 @@ ui.botSelect.addEventListener('change', () => {
 });
 ui.knowledgeList.addEventListener('click', handleKnowledgeAction);
 ui.conversationsList.addEventListener('click', handleConversationListAction);
+ui.agentReplyForm.addEventListener('submit', sendAgentReply);
 ui.handoffBtn.addEventListener('click', () => updateConversationStatus('handoff', state.activeConversationId));
 ui.resolveBtn.addEventListener('click', () => updateConversationStatus('resolve', state.activeConversationId));
 ui.logoutBtn.addEventListener('click', logout);
+window.setInterval(() => {
+  if (state.tenantId && state.botId && !document.hidden) refreshOps();
+}, 10000);
 
 setLoggedInUI(false);
 restoreSession();
