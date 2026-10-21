@@ -10,52 +10,44 @@ Atendia es un SaaS multi-tenant para que las PYMEs creen, configuren, despliegue
 
 ---
 
-## Estado actual del roadmap (2026-09-14)
+## Estado actual del roadmap (actualizado 2026-10-20)
 
-La ruta de desarrollo ya no está en una etapa únicamente teórica: el backend de la base del producto ya fue levantado, validado y ampliado con persistencia, autenticación básica, credencial pública por bot y un widget web inicial.
+El núcleo técnico del MVP está implementado y validado localmente; todavía no está listo para operar autónomamente con un cliente ni se ha desplegado a producción. El README contiene el detalle de las verificaciones locales y sus límites.
 
 ### Estado por bloque
 
 | Fase | Estado | Detalle |
 | --- | --- | --- |
-| Infraestructura base | Completado | Solución backend creada, ASP.NET Core funcionando, EF Core + PostgreSQL configurado. |
-| LLM abstraction | Completado | `IChatModel` + `ExternalChatModel` implementados. |
-| Migración inicial | Completado | Esquema inicial generado con EF Core. |
-| Persistencia de knowledge | Completado | `EfKnowledgeService` y repositorios EF para tenant/bot. |
-| Persistencia de conversaciones / uso | Completado | Conversaciones, mensajes y usage se persisten mediante repositorios EF y migraciones. Leads siguen pendientes. |
-| Multi-tenancy y seguridad | En progreso | Login, cookie, tenant claims y BotKey están implementados; falta autorización por recurso, roles operativos y auditoría. |
-| Observabilidad y costos | En progreso | Se registran tokens, modelo y latencia; falta tarifario por modelo y métricas operativas. |
-| Widget + onboarding | En progreso | Widget JavaScript y demo disponibles; falta panel administrativo y onboarding sin intervención técnica. |
-| Handoff humano | Pendiente | Flujo de escalamiento aún no está operativo. |
-| Modelo local en VPS | Pendiente | Se evaluará solo cuando el volumen y el costo lo justifiquen. |
+| Infraestructura base | Validado localmente | ASP.NET Core, EF Core, PostgreSQL y pgvector; siete migraciones aplicadas en el entorno local. Falta preparar y validar staging/despliegue. |
+| LLM y RAG | Implementado; evaluación pendiente | `IChatModel` y proveedor externo integrados; Ollama y una recuperación RAG puntual probados localmente. OpenRouter requiere prueba con credenciales reales y RAG requiere evaluación con preguntas del piloto. |
+| Persistencia | Validado localmente | Knowledge, conversaciones, mensajes, uso, leads y auditoría cuentan con persistencia; flujo HTTP validado contra PostgreSQL. |
+| Multi-tenancy y seguridad | Base implementada; evaluación pendiente | Autenticación, autorización por recurso/rol, aislamiento tenant-scoped y auditoría implementados; falta evaluar guardrails y prompt injection con datos y modelo del piloto. |
+| Observabilidad y costos | Parcial | Se registran tokens, modelo, costo estimado y latencia por mensaje, y existen health checks. Faltan tarifas verificadas, agregados por tenant/conversación, métricas/alertas operativas. |
+| Widget y administración | MVP local validado | Widget y panel administrativo permiten configuración, FAQ, conversaciones y handoff. Falta validarlos en staging y con usuarios piloto. |
+| Handoff humano | Implementado localmente | Bandeja, respuesta del agente, actualización en widget y envío SMTP están integrados; la entrega SMTP real no está comprobada. |
+| Piloto y producción | Pendiente | Falta seleccionar cliente/caso de uso, ejecutar evaluación y piloto, y preparar despliegue reproducible. |
+| Modelo local en VPS | Diferido | Decidir únicamente con datos de volumen, costo y operación de un piloto. |
 
-### Completado
+### Validado localmente
 
-- arquitectura base del backend,
-- dominio y services clave,
-- abstracción LLM,
-- configuración de PostgreSQL + EF Core,
-- migración inicial del esquema,
-- endpoints para chat / tenant / bot / knowledge,
-- repositorios EF para tenant, bot y knowledge,
-- validación de compilación y pruebas del backend.
+- API .NET 10 compilada y suite de 21 pruebas automatizadas pasando.
+- Flujo HTTP contra PostgreSQL para autenticación, bots, FAQ, chat, historial, leads y handoff; aislamiento probado entre dos tenants.
+- Admin y widget recorridos localmente, incluyendo respuesta humana y handoff automático por falta de conocimiento.
+- Prueba puntual de RAG con Ollama y una FAQ persistida.
 
-### En progreso
+### Pendiente para el piloto
 
-- RAG vectorial con embeddings y búsqueda filtrada por tenant,
-- validación estricta de pertenencia de bot y autorización por recurso,
-- observabilidad y métricas por conversación,
-- leads y handoff humano,
-- despliegue y validación con cliente piloto.
+- Elegir cliente/vertical, recopilar contenido aprobado y preguntas representativas.
+- Evaluar recuperación, abstención, handoff y prompt injection con el modelo/proveedor seleccionado.
+- Configurar SMTP y confirmar entrega real en el entorno piloto.
+- Preparar despliegue reproducible y validar flujo y readiness en staging.
+- Definir tarifas, agregar costos por tenant/conversación y métricas/alertas mínimas.
+- Regenerar embeddings de FAQ antiguas creadas sin proveedor de embeddings.
+- Medir resolución, escalamiento, latencia y costo durante el piloto.
 
-### Pendiente
+### Fuera del MVP inmediato
 
-- modelo local en VPS,
-- dashboard de administración,
-- handoff humano operativo,
-- billing y monetización,
-- frontend productivo y seguimiento de métricas de negocio,
-- pruebas end-to-end con cliente piloto.
+- Billing, WhatsApp, CRM, dashboard de negocio avanzado y modelo local en VPS. Reconsiderarlos después de validar la necesidad con datos del piloto.
 
 ---
 

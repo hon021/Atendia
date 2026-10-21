@@ -2,7 +2,7 @@
 
 ## Estado actual de ejecución
 
-El proyecto ya completó la fase inicial de infraestructura técnica y la base del MVP funcional:
+Estado al 2026-10-20: el núcleo técnico del MVP está implementado y validado localmente contra PostgreSQL, pero aún no se ha desplegado a producción ni se ha ejecutado un piloto con clientes. La validación local incluye:
 
 - backend compilando,
 - PostgreSQL + EF Core configurado,
@@ -13,9 +13,9 @@ El proyecto ya completó la fase inicial de infraestructura técnica y la base d
 - conversaciones, mensajes y uso persistidos,
 - widget JavaScript funcional para el piloto.
 
-El backend ya tiene autorización por recurso y políticas de roles, RAG con embeddings persistidos y búsqueda HNSW filtrada por tenant/bot, auditoría básica, onboarding y gestión de FAQ vía API, captura de leads y handoff humano mínimo.
+El backend también cuenta con autorización por recurso y políticas de roles, RAG con embeddings persistidos y búsqueda HNSW filtrada por tenant/bot, auditoría básica, configuración y gestión de FAQ, captura de leads y handoff humano. El panel admin y el widget se validaron localmente; se probó una recuperación RAG puntual con Ollama.
 
-Aún faltan el frontend administrativo, notificaciones de handoff, costos reales/observabilidad y validación con un cliente piloto.
+Pendiente: evaluación de RAG y guardrails con contenido aprobado del piloto y el proveedor/modelo elegido; validación real de entrega SMTP; staging y despliegue reproducible; tarifas y métricas agregadas de costo; ejecución del piloto y medición de resultados. El costo estimado y la latencia se registran por mensaje, pero aún no hay medición comercial/operativa completa.
 
 ---
 
@@ -80,10 +80,10 @@ Permitir que una PYME cree su cuenta, configure su bot, publique un widget y res
 - Tracking de consumo y costo.
 - Handoff manual con estado `HUMAN_HANDOFF`, bandeja de conversaciones y captura de leads.
 
-### Arquitectura base
+### Arquitectura base actual
 
 ```text
-Angular Admin
+HTML/JavaScript Admin y Widget
    ↓
 ASP.NET Core API
    ↓
@@ -140,14 +140,9 @@ Hacer que el producto sea útil y administrable por una PYME sin intervención t
 - Reglas de lead capture contextual.
 - Estado de conversación claro: OPEN, AI_HANDLING, WAITING_FOR_USER, HUMAN_HANDOFF, RESOLVED, CLOSED.
 
-### Resultado esperado
+### Estado actual
 
-El backend permite administrar:
-
-- su conocimiento,
-- su bot,
-- sus conversaciones,
-- y sus leads; falta completar la interfaz administrativa.
+Existe un panel administrativo mínimo para gestionar configuración del bot, FAQ, conversaciones, leads y handoffs, validado localmente. La productización de esta interfaz sigue pendiente: debe probarse con usuarios piloto y complementarse según las necesidades observadas. El dashboard analítico descrito en la siguiente fase todavía no está implementado.
 
 ---
 
@@ -159,12 +154,9 @@ Hacer una experiencia operativa real para atención al cliente.
 
 ### Funcionalidades
 
-- Escalación manual a humano.
-- Notificaciones a agentes (pendiente).
-- Estado `HUMAN_HANDOFF` persistido.
-- Endpoints de revisión de conversaciones.
-- Integración con WhatsApp cuando sea viable.
-- Webhooks y eventos para CRM o automatizaciones.
+- Escalación manual y automática a humano, estado `HUMAN_HANDOFF` y endpoints de revisión: implementados y validados localmente.
+- Notificación SMTP al email de contacto del bot: integrada; falta configurar y verificar la entrega real en el entorno piloto.
+- Integración con WhatsApp, webhooks y eventos para CRM: futuras, sujetas a validación de necesidad.
 
 ### Resultado esperado
 

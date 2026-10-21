@@ -1,5 +1,7 @@
 # Atendia — Sprint Board
 
+> Estado actualizado al 2026-10-20. El núcleo del MVP está validado localmente; este tablero distingue ese trabajo de las tareas de preparación y ejecución del piloto. No hay despliegue de producción.
+
 ## Objetivo del sprint
 
 Convertir la base técnica ya validada en una capa operativa mínima de producto: autenticación, persistencia real, aislamiento por tenant, RAG verificable, métricas de costo, widget funcional y preparación para un piloto real.
@@ -27,7 +29,7 @@ Quedan fuera de este sprint: WhatsApp, billing, CRM, Redis, colas, modelo local 
 
 ### Estado
 
-Completada a nivel backend; pendiente validación con PostgreSQL real.
+Completada y validada localmente contra PostgreSQL real, incluyendo persistencia de FAQ, conversaciones, mensajes, uso y leads.
 
 ---
 
@@ -46,7 +48,7 @@ Completada a nivel backend; pendiente validación con PostgreSQL real.
 
 ### Estado
 
-Guardrails básicos y abstención implementados; hace falta evaluación con un conjunto de ataques realista. La política de prompt reduce el riesgo, pero no garantiza por sí sola resistencia a prompt injection.
+Autenticación, aislamiento tenant-scoped, autorización y auditoría básica están implementados. Los guardrails y el handoff por falta de respaldo se probaron localmente; falta evaluación amplia de prompt injection y calibración con preguntas del cliente piloto y el proveedor/modelo definitivo. La política de prompt no garantiza por sí sola resistencia a ataques.
 
 ---
 
@@ -55,9 +57,9 @@ Guardrails básicos y abstención implementados; hace falta evaluación con un c
 ### Tareas
 
 - [x] Registrar tokens por request, modelo y latencia.
-- [ ] Calcular costo estimado por conversación.
-- [ ] Configurar tarifas por proveedor/modelo para calcular costo real.
-- [ ] Agregar logs estructurados por tenant y bot.
+- [x] Persistir el costo estimado informado por el proveedor por mensaje.
+- [ ] Configurar tarifas verificadas por proveedor/modelo y agregar costo por conversación y tenant.
+- [ ] Agregar métricas operativas y alertas por consumo/fallos; mejorar correlación por tenant, bot y conversación.
 - [x] Registrar fallos del proveedor y responder HTTP 503 con mensaje controlado.
 - [x] Añadir liveness `/health` y readiness de PostgreSQL `/health/ready`.
 - [ ] Exponer métricas básicas para dashboard y correlación de logs por conversación.
@@ -75,7 +77,7 @@ Guardrails básicos y abstención implementados; hace falta evaluación con un c
 
 ### Estado
 
-Backend listo; frontend administrativo pendiente.
+Widget, demo y panel administrativo mínimo implementados y recorridos localmente. Falta validarlos en staging y comprobar que el onboarding sea utilizable por un cliente sin asistencia técnica.
 
 ---
 
@@ -96,7 +98,7 @@ Backend listo; frontend administrativo pendiente.
 
 ### Estado
 
-El flujo local de admin/widget fue validado; faltan cliente y contenido piloto, validar la entrega SMTP real y medir resultados de negocio.
+El flujo local de admin/widget fue validado, incluido el handoff y la respuesta del agente. Faltan cliente y contenido piloto, configuración y prueba de entrega SMTP real, staging/despliegue reproducible y medición de resultados de negocio.
 
 ---
 
@@ -115,13 +117,13 @@ Pendiente hasta obtener datos de volumen y costo reales.
 
 ---
 
-## Criterio de salida del sprint
+## Criterio de salida del MVP técnico
 
-El sprint se considera listo cuando:
+El núcleo técnico se considera validado localmente: persistencia real, aislamiento tenant-scoped, widget, captura de leads y handoff funcionan en las pruebas realizadas. La aceptación operativa del MVP sigue pendiente hasta que:
 
 - todas las conversaciones y mensajes quedan persistidos,
 - cada request está validado por tenant,
 - el widget puede instalarse y conectarse a un bot,
-- existe tracking de costo por conversación,
+- se agrega el costo verificado por conversación,
 - existe un handoff manual mínimo y captura de leads,
-- y el flujo completo puede probarse con un cliente piloto real.
+- y el flujo completo se valida en staging y con un cliente piloto real.
